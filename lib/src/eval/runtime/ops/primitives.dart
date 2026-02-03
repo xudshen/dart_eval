@@ -280,7 +280,15 @@ class BoxList implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $List.wrap(<$Value>[...(runtime.frame[reg] as List)]);
+    final frame = runtime.frame;
+    final source = frame[reg];
+    // Optimize: avoid spread operator, use List.of for better performance
+    // Also check if already a List<$Value> to avoid unnecessary copying
+    if (source is List<$Value>) {
+      frame[reg] = $List.wrap(source);
+    } else {
+      frame[reg] = $List.wrap(List<$Value>.of(source as List<dynamic>));
+    }
   }
 
   @override
@@ -324,8 +332,14 @@ class BoxMap implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] =
-        $Map.wrap(<$Value, $Value>{...(runtime.frame[reg] as Map)});
+    final frame = runtime.frame;
+    final source = frame[reg];
+    // Optimize: avoid spread operator, use Map.of for better performance
+    if (source is Map<$Value, $Value>) {
+      frame[reg] = $Map.wrap(source);
+    } else {
+      frame[reg] = $Map.wrap(Map<$Value, $Value>.of(source as Map<dynamic, dynamic>));
+    }
   }
 
   @override
@@ -347,7 +361,14 @@ class BoxSet implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $Set.wrap(<$Value>{...(runtime.frame[reg] as Set)});
+    final frame = runtime.frame;
+    final source = frame[reg];
+    // Optimize: avoid spread operator, use Set.of for better performance
+    if (source is Set<$Value>) {
+      frame[reg] = $Set.wrap(source);
+    } else {
+      frame[reg] = $Set.wrap(Set<$Value>.of(source as Set<dynamic>));
+    }
   }
 
   @override

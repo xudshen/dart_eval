@@ -42,17 +42,34 @@ class PushScope implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    final frame = List<Object?>.filled(255, null);
+    // Optimization: Use growable list with initial capacity instead of fixed 255
+    // This saves memory for small functions while still allowing growth
+    final args = runtime.args;
+    final argsLen = args.length;
+    // Start with capacity of max(args.length + 16, 32) to reduce reallocations
+    final initialCapacity = argsLen + 32;
+    final frame = List<Object?>.filled(initialCapacity > 255 ? 255 : initialCapacity, null, growable: true);
+
     runtime.stack.add(frame);
     runtime.scopeNameStack.add(frName);
     runtime.frame = frame;
     runtime.frameOffsetStack.add(runtime.frameOffset);
-    runtime.frameOffset = runtime.args.length;
-    final args = runtime.args;
-    for (var i = 0; i < args.length; i++) {
-      frame[i] = args[i];
+    runtime.frameOffset = argsLen;
+
+    // Unroll small argument copies for common cases
+    if (argsLen > 0) {
+      frame[0] = args[0];
+      if (argsLen > 1) {
+        frame[1] = args[1];
+        if (argsLen > 2) {
+          frame[2] = args[2];
+          for (var i = 3; i < argsLen; i++) {
+            frame[i] = args[i];
+          }
+        }
+      }
     }
-    runtime.args = [];
+    runtime.args = const [];
   }
 
   @override
@@ -87,10 +104,11 @@ class PopScope implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.stack.removeLast();
+    final stack = runtime.stack;
+    stack.removeLast();
     runtime.scopeNameStack.removeLast();
-    if (runtime.stack.isNotEmpty) {
-      runtime.frame = runtime.stack.last;
+    if (stack.isNotEmpty) {
+      runtime.frame = stack.last;
       runtime.frameOffset = runtime.frameOffsetStack.removeLast();
     }
   }
@@ -183,9 +201,11 @@ class Return implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    if (_location > -1) {
-      runtime.returnValue = runtime.frame[_location];
-    } else if (_location == -1 || _location == -3) {
+    // Cache location to avoid repeated field access
+    final loc = _location;
+    if (loc > -1) {
+      runtime.returnValue = runtime.frame[loc];
+    } else if (loc == -1 || loc == -3) {
       runtime.returnValue = null;
     } else {
       if (runtime.rethrowException != null) {
@@ -198,16 +218,18 @@ class Return implements EvcOp {
       runtime.returnValue = runtime.returnFromCatch;
     }
 
-    runtime.stack.removeLast();
+    // Cache stack reference to avoid repeated property access
+    final stack = runtime.stack;
+    stack.removeLast();
     runtime.scopeNameStack.removeLast();
-    if (runtime.stack.isNotEmpty) {
-      runtime.frame = runtime.stack.last;
+    if (stack.isNotEmpty) {
+      runtime.frame = stack.last;
       runtime.frameOffset = runtime.frameOffsetStack.removeLast();
     }
 
     runtime.catchStack.removeLast();
     if (runtime.inCatch) {
-      if (_location != -3) {
+      if (loc != -3) {
         runtime.catchControlFlowOutcome = 1;
       }
       runtime.inCatch = false;
@@ -317,22 +339,33 @@ class PushFunctionPtr implements EvcOp {
   @override
   void run(Runtime runtime) {
     final args = runtime.args;
-    final pAT = runtime.constantPool[args[1] as int] as List;
-    final posArgTypes = [for (final json in pAT) RuntimeType.fromJson(json)];
-    final snAT = runtime.constantPool[args[3] as int] as List;
-    final sortedNamedArgTypes = [
-      for (final json in snAT) RuntimeType.fromJson(json)
-    ];
+    final constantPool = runtime.constantPool;
+
+    // Cache constant pool lookups
+    final pAT = constantPool[args[1] as int] as List;
+    final snAT = constantPool[args[3] as int] as List;
+
+    // Use List.generate for potentially better performance than list comprehension
+    final posArgTypes = List<RuntimeType>.generate(
+      pAT.length,
+      (i) => RuntimeType.fromJson(pAT[i]),
+      growable: false,
+    );
+    final sortedNamedArgTypes = List<RuntimeType>.generate(
+      snAT.length,
+      (i) => RuntimeType.fromJson(snAT[i]),
+      growable: false,
+    );
 
     runtime.frame[runtime.frameOffset++] = EvalFunctionPtr(
         runtime.frame,
         _offset,
         args[0] as int,
         posArgTypes,
-        (runtime.constantPool[args[2] as int] as List).cast(),
+        (constantPool[args[2] as int] as List).cast(),
         sortedNamedArgTypes);
 
-    runtime.args = [];
+    runtime.args = const [];
   }
 
   @override

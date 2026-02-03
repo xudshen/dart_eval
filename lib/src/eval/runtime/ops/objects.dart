@@ -23,13 +23,14 @@ class InvokeDynamic implements EvcOp {
 
     while (true) {
       if (object is $InstanceImpl) {
-        final methods = object.evalClass.methods;
-        final offset = methods[method0];
+        final offset = object.evalClass.methods[method0];
         if (offset == null) {
           object = object.evalSuperclass;
           continue;
         }
-        runtime.callStack.add(runtime._prOffset);
+        // Cache prOffset before modifying to avoid multiple property accesses
+        final returnOffset = runtime._prOffset;
+        runtime.callStack.add(returnOffset);
         runtime.catchStack.add([]);
         runtime._prOffset = offset;
         return;
@@ -127,8 +128,16 @@ class CheckEq implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    final v1 = runtime.frame[_value1];
-    final v2 = runtime.frame[_value2];
+    final frame = runtime.frame;
+    final v1 = frame[_value1];
+    final v2 = frame[_value2];
+
+    // Fast path: primitive types (unboxed) - most common case
+    // This avoids the type checking loop for simple comparisons
+    if (v1 is! $Value) {
+      runtime.returnValue = v1 == v2;
+      return;
+    }
 
     var vx = v1;
 
@@ -258,27 +267,31 @@ class PushObjectProperty implements EvcOp {
       if (object is $InstanceImpl) {
         base = object;
         final evalClass = object.evalClass;
-        final offset = evalClass.getters[property];
-        if (offset == null) {
-          final method = evalClass.methods[property];
-          if (method == null) {
-            object = object.evalSuperclass;
-            if (object == null) {
-              runtime.returnValue =
-                  (base as $InstanceImpl).getCoreObjectProperty(property);
-              return;
-            }
-            continue;
-          }
-          runtime.returnValue = EvalStaticFunctionPtr(object, method);
+        // Try getters first (more common for property access)
+        final getterOffset = evalClass.getters[property];
+        if (getterOffset != null) {
+          runtime.args.add(object);
+          final returnOffset = runtime._prOffset;
+          runtime.callStack.add(returnOffset);
+          runtime.catchStack.add([]);
+          runtime._prOffset = getterOffset;
+          return;
+        }
+        // Then try methods (for tearoffs)
+        final methodOffset = evalClass.methods[property];
+        if (methodOffset != null) {
+          runtime.returnValue = EvalStaticFunctionPtr(object, methodOffset);
           runtime.args = [];
           return;
         }
-        runtime.args.add(object);
-        runtime.callStack.add(runtime._prOffset);
-        runtime.catchStack.add([]);
-        runtime._prOffset = offset;
-        return;
+        // Walk up superclass chain
+        object = object.evalSuperclass;
+        if (object == null) {
+          runtime.returnValue =
+              (base as $InstanceImpl).getCoreObjectProperty(property);
+          return;
+        }
+        continue;
       }
 
       final result = ((object as $Instance).$getProperty(runtime, property));
