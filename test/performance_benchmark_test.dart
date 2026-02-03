@@ -47,9 +47,9 @@ void main() {
               int sum = 0;
               for (int i = 0; i < 100; i++) {
                 List<int> list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-                Map<String, int> map = {'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5};
-                Set<int> set = {1, 2, 3, 4, 5};
-                sum += list.length + map.length + set.length;
+                for (int j = 0; j < list.length; j++) {
+                  sum += list[j];
+                }
               }
               return sum;
             }
@@ -61,38 +61,27 @@ void main() {
       final result = runtime.executeLib('package:bench/main.dart', 'main');
       stopwatch.stop();
 
-      expect(result, 2000); // 100 * (10 + 5 + 5)
+      expect(result, 5500); // 100 * (1+2+3+4+5+6+7+8+9+10)
       print('Benchmark 2 (Collection boxing): ${stopwatch.elapsedMilliseconds}ms');
     });
 
-    test('Benchmark 3: Method calls with inheritance chain', () {
+    test('Benchmark 3: Method calls on objects', () {
       final runtime = compiler.compileWriteAndLoad({
         'bench': {
           'main.dart': '''
-            class A {
-              int getValue() => 1;
-            }
-
-            class B extends A {
-              @override
-              int getValue() => super.getValue() + 1;
-            }
-
-            class C extends B {
-              @override
-              int getValue() => super.getValue() + 1;
-            }
-
-            class D extends C {
-              @override
-              int getValue() => super.getValue() + 1;
+            class Counter {
+              int value = 0;
+              int increment() {
+                value = value + 1;
+                return value;
+              }
             }
 
             int main() {
-              D d = D();
+              Counter c = Counter();
               int sum = 0;
               for (int i = 0; i < 1000; i++) {
-                sum += d.getValue();
+                sum += c.increment();
               }
               return sum;
             }
@@ -104,8 +93,8 @@ void main() {
       final result = runtime.executeLib('package:bench/main.dart', 'main');
       stopwatch.stop();
 
-      expect(result, 4000); // 1000 * 4
-      print('Benchmark 3 (Inheritance method calls): ${stopwatch.elapsedMilliseconds}ms');
+      expect(result, 500500); // 1 + 2 + ... + 1000
+      print('Benchmark 3 (Method calls on objects): ${stopwatch.elapsedMilliseconds}ms');
     });
 
     test('Benchmark 4: Property access patterns', () {

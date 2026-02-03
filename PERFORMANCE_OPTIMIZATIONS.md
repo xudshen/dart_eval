@@ -30,31 +30,32 @@ if (source is List<$Value>) {
 }
 ```
 
-### Issue 2: Fixed 255-Element Stack Frame Allocation
-**Location**: `lib/src/eval/runtime/ops/flow.dart` (line 45)
+### Issue 2: Stack Frame Argument Copying Optimization
+**Location**: `lib/src/eval/runtime/ops/flow.dart` (PushScope)
 
-**Problem**: Every function call allocated a fixed-size frame of 255 elements:
-```dart
-final frame = List<Object?>.filled(255, null);
-```
+**Problem**: Argument copying used a simple loop that wasn't optimized for common cases.
 
 **Impact**:
-- Memory waste for simple functions that only use a few variables
-- Unnecessary memory allocation overhead on every function call
+- Inefficient copying for small argument counts (most common case)
 
 **Solution**:
-1. Calculate initial capacity based on argument count plus a small buffer
-2. Use growable lists that can expand if needed
-3. Unroll small argument copies for common cases (0-3 args)
-4. Use `const []` for empty args to avoid allocating new empty lists
+1. Unroll small argument copies for common cases (0-3 args)
+2. Keep fixed 255-element frame for compatibility and to avoid bounds checks
 
 ```dart
-final initialCapacity = argsLen + 32;
-final frame = List<Object?>.filled(
-  initialCapacity > 255 ? 255 : initialCapacity,
-  null,
-  growable: true
-);
+// Unroll common cases for performance
+if (argsLen > 0) {
+  frame[0] = args[0];
+  if (argsLen > 1) {
+    frame[1] = args[1];
+    if (argsLen > 2) {
+      frame[2] = args[2];
+      for (var i = 3; i < argsLen; i++) {
+        frame[i] = args[i];
+      }
+    }
+  }
+}
 ```
 
 ### Issue 3: Method/Property Lookup Without Caching

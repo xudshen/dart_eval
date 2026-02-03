@@ -139,7 +139,8 @@ class CheckEq implements EvcOp {
       return;
     }
 
-    var vx = v1;
+    // Use Object? type to allow assignment of $Instance? from evalSuperclass
+    Object? vx = v1;
 
     while (true) {
       if (vx is $InstanceImpl) {

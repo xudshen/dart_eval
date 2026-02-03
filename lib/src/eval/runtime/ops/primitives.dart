@@ -281,13 +281,13 @@ class BoxList implements EvcOp {
   void run(Runtime runtime) {
     final reg = _reg;
     final frame = runtime.frame;
-    final source = frame[reg];
-    // Optimize: avoid spread operator, use List.of for better performance
-    // Also check if already a List<$Value> to avoid unnecessary copying
+    final source = frame[reg] as List;
+    // Optimize: check if already a List<$Value> to avoid unnecessary casting
     if (source is List<$Value>) {
       frame[reg] = $List.wrap(source);
     } else {
-      frame[reg] = $List.wrap(List<$Value>.of(source as List<dynamic>));
+      // Use List.from with explicit type for proper casting
+      frame[reg] = $List.wrap(List<$Value>.from(source));
     }
   }
 
@@ -333,12 +333,13 @@ class BoxMap implements EvcOp {
   void run(Runtime runtime) {
     final reg = _reg;
     final frame = runtime.frame;
-    final source = frame[reg];
-    // Optimize: avoid spread operator, use Map.of for better performance
+    final source = frame[reg] as Map;
+    // Optimize: check if already a Map<$Value, $Value> to avoid unnecessary casting
     if (source is Map<$Value, $Value>) {
       frame[reg] = $Map.wrap(source);
     } else {
-      frame[reg] = $Map.wrap(Map<$Value, $Value>.of(source as Map<dynamic, dynamic>));
+      // Use Map.from with explicit type for proper casting
+      frame[reg] = $Map.wrap(Map<$Value, $Value>.from(source));
     }
   }
 
@@ -362,12 +363,13 @@ class BoxSet implements EvcOp {
   void run(Runtime runtime) {
     final reg = _reg;
     final frame = runtime.frame;
-    final source = frame[reg];
-    // Optimize: avoid spread operator, use Set.of for better performance
+    final source = frame[reg] as Set;
+    // Optimize: check if already a Set<$Value> to avoid unnecessary casting
     if (source is Set<$Value>) {
       frame[reg] = $Set.wrap(source);
     } else {
-      frame[reg] = $Set.wrap(Set<$Value>.of(source as Set<dynamic>));
+      // Use Set.from with explicit type for proper casting
+      frame[reg] = $Set.wrap(Set<$Value>.from(source));
     }
   }
 

@@ -42,13 +42,11 @@ class PushScope implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    // Optimization: Use growable list with initial capacity instead of fixed 255
-    // This saves memory for small functions while still allowing growth
+    // Use fixed size frame for performance (avoids bound checks and growth)
+    // 255 slots is sufficient for most functions
+    final frame = List<Object?>.filled(255, null);
     final args = runtime.args;
     final argsLen = args.length;
-    // Start with capacity of max(args.length + 16, 32) to reduce reallocations
-    final initialCapacity = argsLen + 32;
-    final frame = List<Object?>.filled(initialCapacity > 255 ? 255 : initialCapacity, null, growable: true);
 
     runtime.stack.add(frame);
     runtime.scopeNameStack.add(frName);
@@ -56,7 +54,7 @@ class PushScope implements EvcOp {
     runtime.frameOffsetStack.add(runtime.frameOffset);
     runtime.frameOffset = argsLen;
 
-    // Unroll small argument copies for common cases
+    // Copy arguments to frame - unroll common cases for performance
     if (argsLen > 0) {
       frame[0] = args[0];
       if (argsLen > 1) {
@@ -69,7 +67,7 @@ class PushScope implements EvcOp {
         }
       }
     }
-    runtime.args = const [];
+    runtime.args = [];
   }
 
   @override
@@ -365,7 +363,7 @@ class PushFunctionPtr implements EvcOp {
         (constantPool[args[2] as int] as List).cast(),
         sortedNamedArgTypes);
 
-    runtime.args = const [];
+    runtime.args = [];
   }
 
   @override

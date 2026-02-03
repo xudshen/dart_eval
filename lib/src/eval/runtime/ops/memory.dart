@@ -48,8 +48,7 @@ class PushReturnValue implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    final offset = runtime.frameOffset++;
-    runtime.frame[offset] = runtime.returnValue;
+    runtime.frame[runtime.frameOffset++] = runtime.returnValue;
   }
 
   @override
