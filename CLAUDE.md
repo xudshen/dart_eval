@@ -32,6 +32,9 @@ dart format .
 dart_eval compile <source>  # Compile to EVC bytecode
 dart_eval run <file.evc>    # Execute bytecode file
 dart_eval dump <file.evc>   # Inspect bytecode contents
+
+# Run performance benchmarks
+dart run benchmark/performance_comparison.dart
 ```
 
 ## Architecture Overview
@@ -76,7 +79,8 @@ dart_eval/
 │       ├── bindgen/              # Code generation for bindings
 │       ├── cli/                  # CLI commands
 │       └── utils/                # Utility functions
-├── test/                         # Test suite (34+ test files, 300+ tests)
+├── test/                         # Test suite (34+ test files, 330+ tests)
+├── benchmark/                    # Performance benchmarks
 ├── example/                      # Usage examples
 ├── bin/                          # CLI entry point
 └── .github/workflows/dart.yml    # CI configuration
@@ -201,6 +205,7 @@ void main() {
 | Standard Library | `stdlib_test.dart`, `string_test.dart`, `convert_test.dart`, `datetime_test.dart` |
 | Async | `async_test.dart` |
 | Interop | `bridge_test.dart`, `wrap_test.dart` |
+| Performance | `performance_benchmark_test.dart` |
 
 ## Development Workflow
 
@@ -280,6 +285,42 @@ The runtime supports fine-grained permissions:
 2. **Runtime issues**: Enable diagnostic mode to trace execution
 3. **Type mismatches**: Verify boxing/unboxing with `$value` property
 4. **Test failures**: The error message often points to the missing implementation
+
+## Performance
+
+### Benchmarks
+
+Run performance comparison benchmarks:
+```bash
+dart run benchmark/performance_comparison.dart
+```
+
+### Performance Characteristics
+
+As an interpreter, dart_eval is slower than native AOT-compiled Dart. Typical performance ratios:
+
+| Operation Type | vs Native Dart |
+|----------------|----------------|
+| Property access | ~12x slower |
+| List operations | ~40x slower |
+| Collection iteration | ~44x slower |
+| Loop arithmetic | ~53x slower |
+| Recursive calls | ~115x slower |
+| Object methods | ~125x slower |
+
+These ratios are expected for interpreter-based execution and acceptable for dynamic code scenarios.
+
+### Key Optimizations Implemented
+
+1. **Collection Boxing** (`ops/primitives.dart`): `BoxList`, `BoxMap`, `BoxSet` use type-checked wrapping instead of spread operators, yielding 35x improvement for list-heavy operations
+
+2. **Argument Copying** (`ops/flow.dart`): `PushScope` unrolls argument copying for common cases (0-3 args)
+
+3. **Equality Fast Path** (`ops/objects.dart`): `CheckEq` skips method lookup for primitive types
+
+4. **Local Variable Caching**: Runtime property accesses cached in local variables to reduce overhead
+
+See `PERFORMANCE_OPTIMIZATIONS.md` and `PERFORMANCE_RESULTS.md` for detailed analysis.
 
 ## Key Dependencies
 
