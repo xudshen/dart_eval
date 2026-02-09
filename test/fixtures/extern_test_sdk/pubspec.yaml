@@ -1,0 +1,6 @@
+name: extern_test_sdk
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  eval_annotation:
+    path: ../../../../eval_annotation

@@ -78,7 +78,11 @@ String constructorForRuntime(
 String staticMethodsForRuntime(BindgenContext ctx, InterfaceElement2 element,
     {bool isBridge = false}) {
   return element.methods2
-      .where((e) => e.isStatic && !e.isOperator && !e.isPrivate)
+      .where((e) =>
+          e.isStatic &&
+          !e.isOperator &&
+          !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3))
       .map((e) => staticMethodForRuntime(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }
@@ -102,6 +106,7 @@ String staticGettersForRuntime(BindgenContext ctx, InterfaceElement2 element,
       .where((e) =>
           e.isStatic &&
           !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3) &&
           (e.nonSynthetic2 is! FieldElement2 ||
               !(e.nonSynthetic2 as FieldElement2).isEnumConstant))
       .map((e) => staticGetterForRuntime(ctx, element, e, isBridge: isBridge))
@@ -124,7 +129,10 @@ String staticGetterForRuntime(BindgenContext ctx, InterfaceElement2 element,
 String staticSettersForRuntime(BindgenContext ctx, InterfaceElement2 element,
     {bool isBridge = false}) {
   return element.setters2
-      .where((e) => e.isStatic && !e.isPrivate)
+      .where((e) =>
+          e.isStatic &&
+          !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3))
       .map((e) => staticSetterForRuntime(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }

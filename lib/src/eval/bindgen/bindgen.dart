@@ -225,6 +225,36 @@ class Bindgen implements BridgeDeclarationRegistry {
     );
   }
 
+  /// Scan static members of [element] for @Bind(extern: true) annotation
+  /// and add their names to [ctx.externMembers].
+  void _collectExternMembers(BindgenContext ctx, InterfaceElement element) {
+    for (final getter in element.getters) {
+      if (getter.isStatic && !getter.isPrivate && _isExternAnnotated(getter)) {
+        ctx.externMembers.add(getter.name!);
+      }
+    }
+    for (final method in element.methods) {
+      if (method.isStatic && !method.isPrivate && _isExternAnnotated(method)) {
+        ctx.externMembers.add(method.name!);
+      }
+    }
+    for (final setter in element.setters) {
+      if (setter.isStatic && !setter.isPrivate && _isExternAnnotated(setter)) {
+        ctx.externMembers.add(setter.name!);
+      }
+    }
+  }
+
+  /// Check if an element has @Bind(extern: true) annotation.
+  bool _isExternAnnotated(Element element) {
+    final metadata = element.metadata;
+    final bindAnno = metadata.annotations
+        .firstWhereOrNull((e) => e.element?.displayName == 'Bind');
+    if (bindAnno == null) return false;
+    final value = bindAnno.computeConstantValue();
+    return value?.getField('extern')?.toBoolValue() ?? false;
+  }
+
   String? _$instance(BindgenContext ctx, ClassElement2 element) {
     final (:process, :isBridge, :alsoWrap) = _shouldProcess(ctx, element);
     if (!process) {
@@ -236,6 +266,10 @@ class Bindgen implements BridgeDeclarationRegistry {
           'Cannot bind sealed class ${element.name3} as a bridge type. '
           'Please remove the @Bind annotation, use a wrapper, or make the class non-sealed.');
     }
+
+    // Scan members for @Bind(extern: true) and record in ctx.externMembers
+    ctx.externMembers.clear();
+    _collectExternMembers(ctx, element);
 
     registerClasses.add((
       file: ctx.filename,

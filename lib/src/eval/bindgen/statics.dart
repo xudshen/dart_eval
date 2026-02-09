@@ -56,7 +56,11 @@ String _$constructor(
 
 String $staticMethods(BindgenContext ctx, InterfaceElement2 element) {
   return element.methods2
-      .where((e) => e.isStatic && !e.isOperator && !e.isPrivate)
+      .where((e) =>
+          e.isStatic &&
+          !e.isOperator &&
+          !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3))
       .map((e) => _$staticMethod(ctx, element, e))
       .join('\n');
 }
@@ -80,6 +84,7 @@ String $staticGetters(BindgenContext ctx, InterfaceElement2 element) {
       .where((e) =>
           e.isStatic &&
           !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3) &&
           (e.nonSynthetic2 is! FieldElement2 ||
               !(e.nonSynthetic2 as FieldElement2).isEnumConstant))
       .map((e) => _$staticGetter(ctx, element, e))
@@ -99,7 +104,10 @@ String _$staticGetter(BindgenContext ctx, InterfaceElement2 element,
 
 String $staticSetters(BindgenContext ctx, InterfaceElement2 element) {
   return element.setters2
-      .where((e) => e.isStatic && !e.isPrivate)
+      .where((e) =>
+          e.isStatic &&
+          !e.isPrivate &&
+          !ctx.externMembers.contains(e.name3))
       .map((e) => _$staticSetter(ctx, element, e))
       .join('\n');
 }

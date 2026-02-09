@@ -12,6 +12,10 @@ class BindgenContext {
   final Map<String, List<BridgeDeclaration>> bridgeDeclarations;
   final Map<String, String> exportedLibMappings;
 
+  /// Members marked with @Bind(extern: true).
+  /// These get compile-time declarations but no runtime binding.
+  final Set<String> externMembers = {};
+
   BindgenContext(this.filename, this.uri,
       {required this.all,
       required this.bridgeDeclarations,
