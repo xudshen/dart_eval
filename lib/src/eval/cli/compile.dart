@@ -1,72 +1,71 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dart_eval/dart_eval.dart';
-import 'package:dart_eval/dart_eval_bridge.dart';
+import 'package:dart_eval/src/eval/cli/bindings.dart';
 import 'package:dart_eval/src/eval/cli/utils.dart';
 import 'package:path/path.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 
-void cliCompile(String outputName) {
-  final compiler = Compiler()
-    ..diagnosticMode = DiagnosticMode.throwErrorPrintAll;
+/// Result of a programmatic compilation.
+class CompileResult {
+  final Uint8List bytecode;
+  final int sourceLength;
+  final Duration elapsed;
 
-  print('Loading files...');
-  var commandRoot = Directory(current);
-  var projectRoot = findProjectRoot(commandRoot);
+  CompileResult({
+    required this.bytecode,
+    required this.sourceLength,
+    required this.elapsed,
+  });
+}
+
+/// Compile a dart_eval project programmatically.
+///
+/// - [projectPath]: root directory of the project (must contain pubspec.yaml)
+/// - [outputPath]: path to write the compiled .evc file
+/// - [bindingPaths]: additional directories containing binding JSON files;
+///   if empty, auto-discovers from `<projectPath>/.dart_eval/bindings/`
+/// - [diagnosticMode]: how to handle diagnostics (default: throw + print all)
+/// - [verbose]: whether to print progress info
+CompileResult compile({
+  required String projectPath,
+  required String outputPath,
+  List<String> bindingPaths = const [],
+  DiagnosticMode diagnosticMode = DiagnosticMode.throwErrorPrintAll,
+  bool verbose = false,
+}) {
+  final compiler = Compiler()..diagnosticMode = diagnosticMode;
+
+  if (verbose) print('Loading files...');
+
+  final projectRoot = findProjectRoot(Directory(projectPath));
+
+  // Load bindings
+  final effectiveBindingPaths = bindingPaths.isNotEmpty
+      ? bindingPaths
+      : defaultBindingPaths(projectRoot.path);
+  loadBindingsInto(compiler, effectiveBindingPaths, verbose: verbose);
 
   final bridgedPackages = <String>[];
-
-  if (FileSystemEntity.typeSync('./.dart_eval/bindings') ==
-      FileSystemEntityType.directory) {
-    final files = Directory('./.dart_eval/bindings')
-        .listSync()
-        .where((entity) => entity is File && entity.path.endsWith('.json'))
-        .cast<File>();
-
-    for (final file in files) {
-      print(
-          'Found binding file: ${relative(file.path, from: projectRoot.path)}');
-      final data0 = file.readAsStringSync();
-      final decoded = (json.decode(data0) as Map).cast<String, dynamic>();
-      final classList = (decoded['classes'] as List);
-      for (final $class in classList.cast<Map>()) {
-        compiler.defineBridgeClass(BridgeClassDef.fromJson($class.cast()));
-      }
-      for (final $enum in (decoded['enums'] as List).cast<Map>()) {
-        compiler.defineBridgeEnum(BridgeEnumDef.fromJson($enum.cast()));
-      }
-      for (final $source in (decoded['sources'] as List).cast<Map>()) {
-        compiler.addSource(DartSource($source['uri'], $source['source']));
-      }
-      for (final $function in (decoded['functions'] as List).cast<Map>()) {
-        compiler.defineBridgeTopLevelFunction(
-            BridgeFunctionDeclaration.fromJson($function.cast()));
-      }
-    }
-
-    for (final lib in compiler.bridgedLibraries) {
-      if (lib.startsWith('package:')) {
-        final packageName = lib.split('/')[0].substring(8);
-        if (!bridgedPackages.contains(packageName)) {
-          bridgedPackages.add(packageName);
-        }
+  for (final lib in compiler.bridgedLibraries) {
+    if (lib.startsWith('package:')) {
+      final packageName = lib.split('/')[0].substring(8);
+      if (!bridgedPackages.contains(packageName)) {
+        bridgedPackages.add(packageName);
       }
     }
   }
 
+  // Read pubspec
   final pubspecFile = File(join(projectRoot.path, 'pubspec.yaml'));
   final pubspec = Pubspec.parse(pubspecFile.readAsStringSync());
-
   final packageName = pubspec.name;
   compiler.version = pubspec.version?.canonicalizedVersion;
 
+  // Collect source files
   final data = <String, Map<String, String>>{};
   var sourceLength = 0;
-
-  // Recursively add dart files in the lib and bin directory
-  final libDir = Directory(join(projectRoot.path, 'lib'));
-  final binDir = Directory(join(projectRoot.path, 'bin'));
 
   void addFiles(String pkg, Directory dir, String root) {
     if (!dir.existsSync()) return;
@@ -77,7 +76,6 @@ void cliCompile(String outputName) {
       if (file is File && file.path.endsWith('.dart')) {
         final fileData = file.readAsStringSync();
         sourceLength += fileData.length;
-
         final p = relative(file.path, from: root).replaceAll('\\', '/');
         data[pkg]![p] = fileData;
       } else if (file is Directory) {
@@ -86,26 +84,23 @@ void cliCompile(String outputName) {
     }
   }
 
-  addFiles(packageName, libDir, libDir.path);
-  addFiles(packageName, binDir, binDir.path);
+  addFiles(packageName, Directory(join(projectRoot.path, 'lib')),
+      join(projectRoot.path, 'lib'));
+  addFiles(packageName, Directory(join(projectRoot.path, 'bin')),
+      join(projectRoot.path, 'bin'));
 
+  // Add package dependencies
   final packageConfig = getPackageConfig(projectRoot);
-
-  if (packageConfig.packages.length > 1) {
+  if (verbose && packageConfig.packages.length > 1) {
     print('Adding packages from package config:');
   }
-  var skips = '';
+
   for (final package in packageConfig.packages) {
-    if (bridgedPackages.contains(package.name)) {
-      skips += 'Skipped package ${package.name} because it is bridged.\n';
+    if (bridgedPackages.contains(package.name) ||
+        packageName == package.name) {
       continue;
     }
-
-    if (packageName == package.name) {
-      continue;
-    }
-
-    stdout.write('${package.name} ');
+    if (verbose) stdout.write('${package.name} ');
 
     String filepath;
     try {
@@ -113,24 +108,38 @@ void cliCompile(String outputName) {
     } catch (e) {
       filepath = package.packageUriRoot.toString();
     }
+    addFiles(package.name, Directory(filepath), filepath);
+  }
+  if (verbose) stdout.write('\n');
 
-    final pkgDir = Directory(filepath);
-    addFiles(package.name, pkgDir, pkgDir.path);
+  // Compile
+  if (verbose) print('Compiling package $packageName...');
+  final ts = DateTime.now().millisecondsSinceEpoch;
+  final programSource = compiler.compile(data);
+  final out = programSource.write();
+  final elapsed =
+      Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - ts);
+
+  // Write output
+  File(outputPath).writeAsBytesSync(out);
+
+  if (verbose) {
+    print('Compiled $sourceLength characters Dart to ${out.length} bytes '
+        'EVC in ${elapsed.inMilliseconds} ms: $outputPath');
   }
 
-  stdout.write('\n$skips');
+  return CompileResult(
+    bytecode: out,
+    sourceLength: sourceLength,
+    elapsed: elapsed,
+  );
+}
 
-  print('\nCompiling package $packageName...');
-
-  final ts = DateTime.now().millisecondsSinceEpoch;
-
-  final programSource = compiler.compile(data);
-
-  final out = programSource.write();
-
-  File(outputName).writeAsBytesSync(out);
-
-  final timeElapsed = DateTime.now().millisecondsSinceEpoch - ts;
-  print(
-      'Compiled $sourceLength characters Dart to ${out.length} bytes EVC in $timeElapsed ms: $outputName');
+/// CLI entry point for `dart_eval compile`. Delegates to [compile].
+void cliCompile(String outputName) {
+  compile(
+    projectPath: current,
+    outputPath: outputName,
+    verbose: true,
+  );
 }

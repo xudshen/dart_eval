@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:change_case/change_case.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bindgen/bindgen.dart';
+import 'package:dart_eval/src/eval/cli/bindings.dart';
 import 'package:dart_eval/src/eval/cli/utils.dart';
 import 'package:dart_style/dart_style.dart';
 import 'package:glob/glob.dart';
@@ -21,55 +21,59 @@ import 'package:dart_eval/dart_eval.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 ''';
 
-void cliBind(
-    {bool singleFile = false,
-    bool all = false,
-    bool generatePlugin = true}) async {
-  print('Loading files...');
-  final commandRoot = Directory(current);
-  final projectRoot = findProjectRoot(commandRoot);
+/// Result of a programmatic bind operation.
+class BindResult {
+  final int boundFileCount;
+  final List<String> boundFiles;
+  final String? pluginPath;
 
+  BindResult({
+    required this.boundFileCount,
+    required this.boundFiles,
+    this.pluginPath,
+  });
+}
+
+/// Generate dart_eval bindings for a project programmatically.
+///
+/// - [projectPath]: root directory of the project (must contain pubspec.yaml)
+/// - [outputDir]: output directory for generated files, relative to project
+///   root (default: `lib/`, FAB uses `lib/_eval/`)
+/// - [all]: bind all classes (not just @Bind-annotated ones)
+/// - [singleFile]: generate a single output file instead of per-source files
+/// - [generatePlugin]: generate an EvalPlugin class
+/// - [bindingPaths]: additional directories containing binding JSON files;
+///   if empty, auto-discovers from `<projectPath>/.dart_eval/bindings/`
+/// - [verbose]: whether to print progress info
+Future<BindResult> bind({
+  required String projectPath,
+  String? outputDir,
+  bool all = false,
+  bool singleFile = false,
+  bool generatePlugin = true,
+  List<String> bindingPaths = const [],
+  bool verbose = false,
+}) async {
+  if (verbose) print('Loading files...');
+
+  final projectRoot = findProjectRoot(Directory(projectPath));
   final bindgen = Bindgen();
 
-  if (FileSystemEntity.typeSync('./.dart_eval/bindings') ==
-      FileSystemEntityType.directory) {
-    final files = Directory('./.dart_eval/bindings')
-        .listSync()
-        .where((entity) => entity is File && entity.path.endsWith('.json'))
-        .cast<File>();
+  // Load bindings
+  final effectiveBindingPaths = bindingPaths.isNotEmpty
+      ? bindingPaths
+      : defaultBindingPaths(projectRoot.path);
+  loadBindingsInto(bindgen, effectiveBindingPaths, verbose: verbose);
 
-    for (final file in files) {
-      print(
-          'Found binding file: ${relative(file.path, from: projectRoot.path)}');
-      final data = file.readAsStringSync();
-      final decoded = (json.decode(data) as Map).cast<String, dynamic>();
-      final classList = (decoded['classes'] as List);
-      for (final $class in classList.cast<Map>()) {
-        bindgen.defineBridgeClass(BridgeClassDef.fromJson($class.cast()));
-      }
-      for (final $enum in (decoded['enums'] as List).cast<Map>()) {
-        bindgen.defineBridgeEnum(BridgeEnumDef.fromJson($enum.cast()));
-      }
-      for (final $function in (decoded['functions'] as List).cast<Map>()) {
-        bindgen.defineBridgeTopLevelFunction(
-            BridgeFunctionDeclaration.fromJson($function.cast()));
-      }
-      (decoded['exportedLibMappings'] as Map)
-          .cast<String, String>()
-          .forEach((key, value) {
-        bindgen.addExportedLibraryMapping(key, value);
-      });
-    }
-  }
-
+  // Read pubspec
   final packageConfig = getPackageConfig(projectRoot);
-
   final pubspecFile = File(join(projectRoot.path, 'pubspec.yaml'));
   final pubspec = Pubspec.parse(pubspecFile.readAsStringSync());
   final packageName = pubspec.name;
 
   final version = Version.parse(Platform.version.split(' ').first);
   final formatter = DartFormatter(languageVersion: version);
+
   for (final package in packageConfig.packages) {
     if (package.name == packageName) {
       bindgen.inject(package: package);
@@ -78,10 +82,14 @@ void cliBind(
   }
 
   var singleResult = '';
-  var numBound = 0;
+  final boundFiles = <String>[];
 
   final analyzePath = join(projectRoot.path, 'analysis_options.yaml');
   final excludes = readAnalyzerExcludes(File(analyzePath));
+
+  // Determine output base directory
+  final effectiveOutputDir = outputDir ?? 'lib';
+  final outputBasePath = join(projectRoot.path, effectiveOutputDir);
 
   Future<void> bindLoop(String pkg, Directory dir, String root) async {
     if (!dir.existsSync()) return;
@@ -95,18 +103,37 @@ void cliBind(
         final uri = 'package:${posix.join(packageName, p)}';
         final output = await bindgen.parse(file, filename, uri, all);
         if (output != null) {
-          print('Bound ${file.path}');
-          numBound++;
+          if (verbose) print('Bound ${file.path}');
+          boundFiles.add(file.path);
           if (singleFile) {
             final ogImport = "import '$uri';\n";
             singleResult = ogImport + singleResult + output;
           } else {
-            final ogImport = "import '$filename';\n";
-            final outputFilename = filename.replaceAll('.dart', '.eval.dart');
-            final outputFile = File(join(dir.path, outputFilename));
+            // Compute output path: if outputDir differs from source dir,
+            // mirror the source structure under outputDir
+            final relFromLib =
+                relative(file.path, from: join(projectRoot.path, 'lib'));
+            String outputFilePath;
+            if (outputDir != null && outputDir != 'lib') {
+              outputFilePath = join(
+                outputBasePath,
+                relFromLib.replaceAll('.dart', '.eval.dart'),
+              );
+              // Ensure directory exists
+              Directory(dirname(outputFilePath)).createSync(recursive: true);
+            } else {
+              // Original behavior: output next to source file
+              final outputFilename =
+                  filename.replaceAll('.dart', '.eval.dart');
+              outputFilePath = join(dir.path, outputFilename);
+            }
+
+            final ogImport = outputDir != null && outputDir != 'lib'
+                ? "import '$uri';\n"
+                : "import '$filename';\n";
             final result = formatter.format(defaultImports + ogImport + output,
                 uri: Uri.parse(uri));
-            outputFile.writeAsStringSync(result);
+            File(outputFilePath).writeAsStringSync(result);
           }
         }
       } else if (file is Directory) {
@@ -119,15 +146,21 @@ void cliBind(
       join(projectRoot.path, 'lib'));
 
   if (singleFile) {
-    final outPath = join(projectRoot.path, 'lib', 'dart_eval_bindings.dart');
-    final outputFile = File(outPath);
+    final outPath =
+        join(outputBasePath, 'dart_eval_bindings.dart');
+    Directory(dirname(outPath)).createSync(recursive: true);
     final result = formatter.format(defaultImports + singleResult,
         uri: Uri.parse('package:$packageName/dart_eval_bindings.dart'));
-    outputFile.writeAsStringSync(result);
+    File(outPath).writeAsStringSync(result);
   }
 
+  String? pluginPath;
   if (generatePlugin) {
-    final pluginFile = File(join(projectRoot.path, 'lib', 'eval_plugin.dart'));
+    final pluginFilePath = join(outputBasePath, outputDir != null && outputDir != 'lib'
+        ? 'plugin.dart'
+        : 'eval_plugin.dart');
+    Directory(dirname(pluginFilePath)).createSync(recursive: true);
+
     final pluginContent = '''
 import 'package:dart_eval/dart_eval_bridge.dart';
 ${[
@@ -155,19 +188,43 @@ class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
   }
 }
 ''';
-    pluginFile.writeAsStringSync(formatter.format(pluginContent,
+    File(pluginFilePath).writeAsStringSync(formatter.format(pluginContent,
         uri: Uri.parse('package:$packageName/eval_plugin.dart')));
-    print('Generated plugin file: ${pluginFile.path}');
+    if (verbose) print('Generated plugin file: $pluginFilePath');
+    pluginPath = pluginFilePath;
   } else {
-    print('Skipping plugin generation.');
+    if (verbose) print('Skipping plugin generation.');
   }
 
-  if (numBound == 0) {
-    print('No files were bound. You may need to add the @Bind annotation from '
-        'the eval_annotation package, or pass the --all flag to bind all classes.');
+  if (boundFiles.isEmpty) {
+    if (verbose) {
+      print('No files were bound. You may need to add the @Bind annotation '
+          'from the eval_annotation package, or pass the --all flag to '
+          'bind all classes.');
+    }
   } else {
-    print('Created bindings for $numBound files.');
+    if (verbose) print('Created bindings for ${boundFiles.length} files.');
   }
+
+  return BindResult(
+    boundFileCount: boundFiles.length,
+    boundFiles: boundFiles,
+    pluginPath: pluginPath,
+  );
+}
+
+/// CLI entry point for `dart_eval bind`. Delegates to [bind].
+void cliBind(
+    {bool singleFile = false,
+    bool all = false,
+    bool generatePlugin = true}) async {
+  await bind(
+    projectPath: current,
+    all: all,
+    singleFile: singleFile,
+    generatePlugin: generatePlugin,
+    verbose: true,
+  );
 }
 
 List<Glob> readAnalyzerExcludes(File path) {
