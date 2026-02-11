@@ -5,6 +5,15 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 /// A bridge class can be extended inside the dart_eval VM and used both in
 /// and outside of it.
 mixin $Bridge<T> on Object implements $Value, $Instance {
+  /// Access BridgeData with a descriptive assertion on missing data.
+  BridgeData get _bridgeData {
+    final data = Runtime.bridgeData[this];
+    assert(data != null,
+        'BridgeData not found for $runtimeType. '
+        'Ensure the bridge instance was created through dart_eval Runtime.');
+    return data!;
+  }
+
   $Value? $bridgeGet(String identifier);
 
   void $bridgeSet(String identifier, $Value value);
@@ -12,7 +21,7 @@ mixin $Bridge<T> on Object implements $Value, $Instance {
   @override
   $Value? $getProperty(Runtime runtime, String identifier) {
     try {
-      return Runtime.bridgeData[this]!.subclass!
+      return _bridgeData.subclass!
           .$getProperty(runtime, identifier);
     } on UnimplementedError catch (_) {
       return $bridgeGet(identifier);
@@ -22,7 +31,7 @@ mixin $Bridge<T> on Object implements $Value, $Instance {
   @override
   void $setProperty(Runtime runtime, String identifier, $Value value) {
     try {
-      return Runtime.bridgeData[this]!.subclass!
+      return _bridgeData.subclass!
           .$setProperty(runtime, identifier, value);
     } on UnimplementedError catch (_) {
       $bridgeSet(identifier, value);
@@ -30,17 +39,17 @@ mixin $Bridge<T> on Object implements $Value, $Instance {
   }
 
   dynamic $_get(String prop) {
-    final runtime = Runtime.bridgeData[this]!.runtime;
+    final runtime = _bridgeData.runtime;
     return ($getProperty(runtime, prop) as $Value).$reified;
   }
 
   void $_set(String prop, $Value value) {
-    final runtime = Runtime.bridgeData[this]!.runtime;
+    final runtime = _bridgeData.runtime;
     $setProperty(runtime, prop, value);
   }
 
   dynamic $_invoke(String method, List<$Value?> args) {
-    final runtime = Runtime.bridgeData[this]!.runtime;
+    final runtime = _bridgeData.runtime;
     return ($getProperty(runtime, method) as EvalFunction)
         .call(runtime, this, [this, ...args])?.$reified;
   }
@@ -51,11 +60,11 @@ mixin $Bridge<T> on Object implements $Value, $Instance {
   @override
   T get $reified => this as T;
 
-  Runtime get $runtime => Runtime.bridgeData[this]!.runtime;
+  Runtime get $runtime => _bridgeData.runtime;
 
   @override
   int $getRuntimeType(Runtime runtime) {
-    final data = Runtime.bridgeData[this]!;
+    final data = _bridgeData;
     return data.subclass?.$getRuntimeType(runtime) ?? data.$runtimeType;
   }
 }
