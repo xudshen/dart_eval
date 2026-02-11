@@ -22,8 +22,16 @@ String formatStackSample(List st, int size, [int? frameOffset]) {
       sb.write('"$s"');
     } else if (s is $num) {
       sb.write('\$$s');
+    } else if (s == null) {
+      sb.write('null');
+    } else if (s is int || s is double || s is bool) {
+      sb.write('(raw) $s');
     } else {
-      sb.write('$s');
+      try {
+        sb.write('$s');
+      } catch (_) {
+        sb.write('<${s.runtimeType}>');
+      }
     }
     if (i < end - 1) {
       sb.write(', ');

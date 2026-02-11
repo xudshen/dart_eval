@@ -76,12 +76,19 @@ int compileMethodDeclaration(MethodDeclaration d, CompilerContext ctx,
     throw CompileError('Unknown function body type ${b.runtimeType}');
   }
 
-  ctx.endAllocScope();
-
+  // For async methods, emit the implicit asyncComplete BEFORE endAllocScope
+  // so that #completer is still in scope. This matches the pattern used in
+  // compileFunctionDeclaration for top-level async functions.
   if (!(stInfo.willAlwaysReturn || stInfo.willAlwaysThrow)) {
     if (b.isAsynchronous) {
       asyncComplete(ctx, -1);
-    } else {
+    }
+  }
+
+  ctx.endAllocScope();
+
+  if (!(stInfo.willAlwaysReturn || stInfo.willAlwaysThrow)) {
+    if (!b.isAsynchronous) {
       ctx.pushOp(Return.make(-1), Return.LEN);
     }
   }

@@ -262,7 +262,14 @@ class CompilerContext with ScopeContext {
               IndexList.make(frOffset, index.scopeFrameOffset), IndexList.LEN);
           allocNest.last++;
 
-          return v.copyWith(scopeFrameOffset: scopeFrameOffset++);
+          // Clear name/frameIndex so that boxing ops (copyWithUpdate) don't
+          // write back to the original scope.  The returned Variable is a
+          // short-lived temporary at the current scope's frameOffset — its
+          // boxing state should not contaminate the declaring scope.
+          final result = v.copyWith(scopeFrameOffset: scopeFrameOffset++);
+          result.name = null;
+          result.frameIndex = null;
+          return result;
         }
         return v
           ..name = name
@@ -272,6 +279,55 @@ class CompilerContext with ScopeContext {
         frameRef.add(locals[i]['#prev']!);
       }
     }
+  }
+
+  /// Emits opcodes to write [valueOffset] into a local variable [name] that
+  /// is accessed across one or more closure boundaries (via #prev chains).
+  /// Returns the Variable metadata if opcodes were emitted, or null if the
+  /// variable is in the current scope (no closure boundary) or not found.
+  Variable? setClosureLocal(String name, int valueOffset) {
+    final frameRef = <Variable>[];
+    for (var i = locals.length - 1; i >= 0; i--) {
+      if (locals[i].containsKey(name)) {
+        if (frameRef.isEmpty) {
+          return null; // Same scope — caller should use CopyValue
+        }
+        final v = locals[i][name]!;
+
+        // Traverse intermediate #prev chain (same as lookupLocal)
+        var frOffset = frameRef[0].scopeFrameOffset;
+        for (var j = 0; j < frameRef.length - 1; j++) {
+          final index =
+              BuiltinValue(intval: frameRef[j + 1].scopeFrameOffset)
+                  .push(this);
+          pushOp(IndexList.make(frOffset, index.scopeFrameOffset),
+              IndexList.LEN);
+          frOffset = scopeFrameOffset++;
+          allocNest.last++;
+        }
+
+        // Final step: SET into parent frame instead of GET
+        final index =
+            BuiltinValue(intval: v.scopeFrameOffset).push(this);
+        pushOp(
+            ListSetIndexed.make(
+                frOffset, index.scopeFrameOffset, valueOffset),
+            ListSetIndexed.LEN);
+
+        // N.B. We return the *original* Variable stored in locals[i][name].
+        // Mutations (name, frameIndex) propagate to the declaring scope —
+        // this is intentional so that callers like IdentifierReference.setValue
+        // can call copyWithUpdate() to update the variable's type metadata
+        // in-place.
+        return v
+          ..name = name
+          ..frameIndex = i;
+      }
+      if (scopeDoesClose[i]) {
+        frameRef.add(locals[i]['#prev']!);
+      }
+    }
+    return null;
   }
 
   @override

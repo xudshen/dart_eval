@@ -133,12 +133,14 @@ class Await implements EvcOp {
     final completer = runtime.frame[_completerOffset] as Completer;
 
     // Create a continuation that holds the current program state, allowing us to resume this function after we've
-    // finished awaiting the future
+    // finished awaiting the future. Save the current catch frame so PopCatch
+    // can find catch offsets pushed by Try opcodes before this await.
     final continuation = Continuation(
         programOffset: runtime._prOffset,
         frame: runtime.frame,
         frameOffset: runtime.frameOffset,
-        args: []);
+        args: [],
+        catchFrame: List<int>.of(runtime.catchStack.last));
 
     var future = runtime.frame[_futureOffset] as $Future;
     _suspend(runtime, continuation, future, completer);
@@ -170,7 +172,8 @@ class Await implements EvcOp {
       runtime.stack.add(continuation.frame);
       runtime.scopeNameStack.add('<asynchronous gap>');
 
-      runtime.bridgeCall(continuation.programOffset);
+      runtime.bridgeCall(continuation.programOffset,
+          catchFrame: continuation.catchFrame);
     } catch (e) {
       // temporary fix: this isn't correct, we need to reenter the eval loop
       completer.completeError(e);

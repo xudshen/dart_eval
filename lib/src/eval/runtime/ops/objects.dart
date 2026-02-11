@@ -254,6 +254,12 @@ class PushObjectProperty implements EvcOp {
     var base = runtime.frame[_location];
     var object = base;
 
+    if (object == null || object is $null) {
+      runtime.$throw('Null check operator used on a null value '
+          '(attempted to access .$property on null)');
+      return;
+    }
+
     while (true) {
       if (object is $InstanceImpl) {
         base = object;

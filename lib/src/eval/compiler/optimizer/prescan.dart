@@ -57,6 +57,67 @@ class PrescanVisitor extends RecursiveAstVisitor<PrescanContext?> {
   }
 
   @override
+  PrescanContext? visitForStatement(ForStatement node) {
+    final parts = node.forLoopParts;
+    final loopVarNames = <String>[];
+
+    // Visit iterable expression before outer scope (mirrors compiler)
+    if (parts is ForEachParts) {
+      parts.iterable.accept(this);
+    }
+
+    // Mirror macroLoop's outer scope
+    ctx.beginAllocScope();
+    final outerScopeIndex = ctx.locals.length - 1;
+
+    if (parts is ForPartsWithDeclarations) {
+      for (final v in parts.variables.variables) {
+        v.accept(this); // triggers visitVariableDeclaration
+        loopVarNames.add(v.name.lexeme);
+      }
+    } else if (parts is ForEachPartsWithDeclaration) {
+      ctx.setLocal(
+          parts.loopVariable.name.lexeme, Variable.alloc(ctx, dynamicType));
+      loopVarNames.add(parts.loopVariable.name.lexeme);
+    } else if (parts is ForPartsWithExpression) {
+      parts.initialization?.accept(this);
+    }
+
+    // Mirror macroLoop's condition scope
+    ctx.beginAllocScope();
+
+    if (parts is ForParts) {
+      parts.condition?.accept(this);
+      for (final u in parts.updaters) {
+        u.accept(this);
+      }
+    }
+
+    // Visit body (Block will open its own scope via visitBlock)
+    node.body.accept(this);
+
+    // End condition scope
+    ctx.endAllocScope();
+
+    // Detect loop variables captured by closures
+    if (loopVarNames.isNotEmpty) {
+      for (final v in ctx.localsReferencedFromClosure) {
+        if (v.frameIndex == outerScopeIndex &&
+            loopVarNames.contains(v.name)) {
+          ctx.loopVarScopesNeedingIteration.add(outerScopeIndex);
+          ctx.closedFrames.remove(outerScopeIndex);
+          break;
+        }
+      }
+    }
+
+    // End outer scope
+    ctx.endAllocScope();
+
+    return null;
+  }
+
+  @override
   PrescanContext? visitFunctionExpression(FunctionExpression node) {
     if (node.parent is Statement || node.parent is Expression) {
       ctx.inClosure = true;
@@ -85,6 +146,7 @@ class PrescanContext with ScopeContext {
   var inClosure = false;
   List<Variable> localsReferencedFromClosure = [];
   Set<int> closedFrames = {};
+  Set<int> loopVarScopesNeedingIteration = {};
 
   @override
   int pushOp(EvcOp op, int length) {

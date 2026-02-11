@@ -131,6 +131,24 @@ class IdentifierReference implements Reference {
       return val;
     }
 
+    // Try closure write path first: if the variable is across a closure
+    // boundary, emit ListSetIndexed to write directly into the parent frame.
+    // This avoids lookupLocal which emits IndexList (read) ops that only
+    // copy the value to a temporary stack position.
+    final closureVar = ctx.setClosureLocal(name, value.scopeFrameOffset);
+    if (closureVar != null) {
+      if (closureVar.isFinal && closureVar.concreteTypes.isNotEmpty) {
+        throw CompileError(
+            'Cannot modify value of final variable $name', source);
+      }
+      final type =
+          TypeRef.commonBaseType(ctx, {closureVar.type, value.type});
+      closureVar.copyWithUpdate(ctx,
+          type: type.copyWith(boxed: value.type.boxed),
+          concreteTypes: value.concreteTypes);
+      return value;
+    }
+
     var local = ctx.lookupLocal(name);
 
     if (local != null) {

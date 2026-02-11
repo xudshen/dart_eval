@@ -416,6 +416,73 @@ void main() {
           prints('Hello!\ntrue\nfalse\n'));
     });
 
+    test('Nested closure write to captured variable (RT-001)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              int x = 0;
+              var outer = () {
+                int captured = 42;
+                var inner = () {
+                  x = captured;
+                };
+                inner();
+              };
+              outer();
+              return x;
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 42);
+    });
+
+    test('setState pattern: nested closure assigns captured var (RT-001)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void setState(void Function() fn) {
+              fn();
+            }
+
+            int main() {
+              int x = 0;
+              var callback = () {
+                int captured = 99;
+                setState(() {
+                  x = captured;
+                });
+              };
+              callback();
+              return x;
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 99);
+    });
+
+    test('Nested closure reads captured variable without writing (RT-001)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              var outer = () {
+                int captured = 7;
+                var inner = () {
+                  return captured;
+                };
+                return inner();
+              };
+              return outer();
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 7);
+    });
+
     test('Simple function call on dynamic type', () {
       final runtime = compiler.compileWriteAndLoad({
         'example': {

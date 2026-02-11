@@ -89,6 +89,62 @@ void main() {
       expect(endTime - startTime, lessThan(200));
     });
 
+    test('Async instance method with int parameter completes without error',
+        () async {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            import 'dart:async';
+
+            int result = 0;
+
+            class Foo {
+              Future<void> doWork(int x) async {
+                await Future.delayed(Duration(milliseconds: 10));
+                result = x + 1;
+              }
+            }
+
+            Future<int> main() async {
+              final foo = Foo();
+              await foo.doWork(5);
+              return result;
+            }
+          '''
+        }
+      });
+
+      final future =
+          runtime.executeLib('package:example/main.dart', 'main') as Future;
+      await expectLater(future, completion($int(6)));
+    });
+
+    test('Async instance method with two parameters', () async {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            import 'dart:async';
+
+            class Calc {
+              Future<int> add(int a, int b) async {
+                await Future.delayed(Duration(milliseconds: 10));
+                return a + b;
+              }
+            }
+
+            Future<int> main() async {
+              final calc = Calc();
+              return await calc.add(3, 4);
+            }
+          '''
+        }
+      });
+
+      final future =
+          runtime.executeLib('package:example/main.dart', 'main') as Future;
+      await expectLater(future, completion($int(7)));
+    });
+
     test('Using a Future result', () async {
       final runtime = compiler.compileWriteAndLoad({
         'example': {

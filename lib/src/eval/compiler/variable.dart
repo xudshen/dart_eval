@@ -123,13 +123,15 @@ class Variable {
       bool? isFinal,
       String? name,
       int? frameIndex,
-      List<TypeRef>? concreteTypes}) {
+      List<TypeRef>? concreteTypes,
+      CallingConvention? callingConvention}) {
     return Variable(
         scopeFrameOffset ?? this.scopeFrameOffset, type ?? this.type,
         methodOffset: methodOffset ?? this.methodOffset,
         isFinal: isFinal ?? this.isFinal,
         methodReturnType: methodReturnType ?? this.methodReturnType,
-        concreteTypes: concreteTypes ?? this.concreteTypes)
+        concreteTypes: concreteTypes ?? this.concreteTypes,
+        callingConvention: callingConvention ?? this.callingConvention)
       ..name = name ?? this.name
       ..frameIndex = frameIndex ?? this.frameIndex;
   }
@@ -141,12 +143,14 @@ class Variable {
       ReturnType? methodReturnType,
       String? name,
       int? frameIndex,
-      List<TypeRef>? concreteTypes}) {
+      List<TypeRef>? concreteTypes,
+      CallingConvention? callingConvention}) {
     var uV = Variable(
         scopeFrameOffset ?? this.scopeFrameOffset, type ?? this.type,
         methodOffset: methodOffset ?? this.methodOffset,
         methodReturnType: methodReturnType ?? this.methodReturnType,
-        concreteTypes: concreteTypes ?? this.concreteTypes)
+        concreteTypes: concreteTypes ?? this.concreteTypes,
+        callingConvention: callingConvention ?? this.callingConvention)
       ..name = name ?? this.name
       ..frameIndex = frameIndex ?? this.frameIndex;
 

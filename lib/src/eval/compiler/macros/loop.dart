@@ -1,3 +1,5 @@
+import 'package:dart_eval/dart_eval_bridge.dart';
+import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/macros/macro.dart';
 import 'package:dart_eval/src/eval/compiler/model/label.dart';
@@ -16,8 +18,11 @@ StatementInfo macroLoop(
   MacroClosure? after,
   bool alwaysLoopOnce = false,
   bool updateBeforeBody = false,
+  List<String> loopVariableNames = const [],
+  bool bodyContainsClosure = false,
 }) {
   ctx.beginAllocScope();
+  final outerScopeIndex = ctx.locals.length - 1;
 
   if (initialization != null) {
     initialization(ctx);
@@ -25,6 +30,25 @@ StatementInfo macroLoop(
 
   /// Make a save-state of the box/unbox status of all locals
   final save = ctx.saveState();
+
+  // Determine if per-iteration scope is needed.
+  // Activated when the loop declares variables AND the body contains closures
+  // that could capture them. The bodyContainsClosure flag is a lightweight AST
+  // check; the prescan path is a more precise (but currently disabled) fallback.
+  final needsPerIterationScope = loopVariableNames.isNotEmpty &&
+      (bodyContainsClosure ||
+          (ctx.preScan?.loopVarScopesNeedingIteration
+                  .contains(outerScopeIndex) ??
+              false));
+
+  // Save original slot offsets of loop variables in the outer scope
+  final origSlotOffsets = <int>[];
+  if (needsPerIterationScope) {
+    for (final name in loopVariableNames) {
+      final v = ctx.lookupLocal(name)!;
+      origSlotOffsets.add(v.scopeFrameOffset);
+    }
+  }
 
   JumpIfFalse? rewriteCond;
   int? rewritePos;
@@ -47,7 +71,87 @@ StatementInfo macroLoop(
     update(ctx);
   }
 
+  // --- Per-iteration scope setup ---
+  final savedSFO = ctx.scopeFrameOffset;
+  // Pre-reserved scratch slots for _emitCopyBack, allocated during setup so
+  // body locals are placed at higher offsets and won't be overwritten.
+  List<Variable>? copyBackIndexVars;
+  Variable? copyBackTempVar;
+  if (needsPerIterationScope) {
+    final numVars = loopVariableNames.length;
+
+    // Push loop var values as args for the new frame
+    for (final name in loopVariableNames) {
+      final v = ctx.lookupLocal(name)!;
+      v.pushArg(ctx);
+    }
+
+    // PushScope: create new runtime frame with loop var copies
+    final ps = PushScope.make(ctx.sourceFile, -1, '#iter');
+    ctx.pushOp(ps, PushScope.len(ps));
+
+    // PushCaptureScope: store parent frame reference at slot numVars
+    ctx.pushOp(PushCaptureScope.make(), PushCaptureScope.length);
+
+    // Track the per-iteration scope in the compiler
+    ctx.beginAllocScope(
+        existingAllocLen: numVars + 1, closure: true);
+
+    // Register loop var copies at slots 0..N-1
+    for (var j = 0; j < numVars; j++) {
+      final origVar = ctx.locals[outerScopeIndex][loopVariableNames[j]]!;
+      ctx.setLocal(
+          loopVariableNames[j],
+          origVar.copyWith(
+            scopeFrameOffset: j,
+            frameIndex: ctx.locals.length - 1,
+          ));
+    }
+
+    // Register #prev (parent frame reference) at slot N
+    ctx.setLocal(
+        '#prev', Variable(numVars, CoreTypes.list.ref(ctx), isFinal: true));
+
+    // Align compiler scopeFrameOffset with runtime frameOffset.
+    // PushScope resets the runtime frame, so we must sync the compiler's
+    // accumulated offset to match (numVars args + 1 for #prev).
+    ctx.scopeFrameOffset = numVars + 1;
+
+    // Pre-reserve scratch slots for _emitCopyBack:
+    // - One index constant per loop variable (holds the parent-frame slot index)
+    // - One temp slot (used for unboxing in the boxed case)
+    // These are allocated NOW so body locals start at higher offsets, preventing
+    // _emitCopyBack from overwriting closure-captured body-local slots.
+    copyBackIndexVars = <Variable>[];
+    for (var j = 0; j < numVars; j++) {
+      copyBackIndexVars.add(
+          BuiltinValue(intval: origSlotOffsets[j]).push(ctx));
+    }
+    copyBackTempVar = BuiltinValue().push(ctx);
+  }
+
+  // Record allocNest depth at label creation so the break cleanup can pop
+  // any intermediate alloc scopes introduced by body constructs (if blocks,
+  // nested blocks, etc.) that don't have their own label cleanup.
+  final labelAllocDepth = ctx.allocNest.length;
+
   final label = CompilerLabel(LabelType.loop, loopStart, (ctx) {
+    // Pop intermediate alloc scopes added by body constructs.  The break
+    // compiler cleans up intermediate *labels* but not intermediate *scopes*
+    // — e.g., an `if` block's outer alloc scope has no label and would
+    // otherwise remain on allocNest, misaligning the expected structure.
+    while (ctx.allocNest.length > labelAllocDepth) {
+      ctx.endAllocScopeQuiet();
+    }
+
+    // Break cleanup: per-iteration scope teardown
+    if (needsPerIterationScope) {
+      _emitCopyBack(ctx, loopVariableNames, copyBackIndexVars!,
+          copyBackTempVar!);
+      ctx.pushOp(PopScope.make(), PopScope.LEN);
+      ctx.endAllocScopeQuiet(popValues: false);
+    }
+
     ctx.endAllocScopeQuiet();
 
     /// Box/unbox variables that were declared outside the loop and changed in
@@ -69,6 +173,15 @@ StatementInfo macroLoop(
   ctx.labels.removeLast();
 
   if (!(statementResult.willAlwaysThrow || statementResult.willAlwaysReturn)) {
+    // --- Per-iteration scope teardown (normal flow) ---
+    if (needsPerIterationScope) {
+      _emitCopyBack(ctx, loopVariableNames, copyBackIndexVars!,
+          copyBackTempVar!);
+      ctx.pushOp(PopScope.make(), PopScope.LEN);
+      ctx.endAllocScope(popValues: false);
+      ctx.scopeFrameOffset = savedSFO;
+    }
+
     if (update != null && !updateBeforeBody) {
       update(ctx);
     }
@@ -88,6 +201,11 @@ StatementInfo macroLoop(
 
     ctx.pushOp(JumpConstant.make(loopStart), JumpConstant.LEN);
   } else {
+    if (needsPerIterationScope) {
+      // Body always throws/returns; still clean up compiler state
+      ctx.endAllocScope(popValues: false);
+      ctx.scopeFrameOffset = savedSFO;
+    }
     pops = 0;
   }
 
@@ -109,4 +227,44 @@ StatementInfo macroLoop(
   ctx.resolveLabel(label);
 
   return statementResult;
+}
+
+/// Emit bytecode to copy loop variable values from the per-iteration frame
+/// back to the parent frame via #prev and ListSetIndexed.
+///
+/// Uses [copyBackIndexVars] and [copyBackTempVar] that were pre-reserved
+/// during per-iteration scope setup. This avoids allocating new slots here,
+/// which would overlap with body-local variable slots that closures may still
+/// reference (since closures capture the per-iteration frame's `List<Object?>`).
+///
+/// If a loop variable became boxed during the body (e.g., from `==` which
+/// calls BoxInt in-place), we unbox to the pre-reserved temp slot before
+/// writing to the parent. This preserves the boxed value at the original
+/// per-iteration slot so closures that captured the frame still see the
+/// expected boxed value.
+void _emitCopyBack(CompilerContext ctx, List<String> loopVariableNames,
+    List<Variable> copyBackIndexVars, Variable copyBackTempVar) {
+  for (var j = 0; j < loopVariableNames.length; j++) {
+    final localVar = ctx.lookupLocal(loopVariableNames[j])!;
+    final prevVar = ctx.lookupLocal('#prev')!;
+
+    int valueSlot = localVar.scopeFrameOffset;
+
+    if (localVar.boxed) {
+      // The loop variable was boxed in-place (e.g., by `==`).  Copy to the
+      // pre-reserved temporary and unbox it so the parent frame receives the
+      // raw value it expects — without modifying per_iter[slot] in-place.
+      ctx.pushOp(
+          CopyValue.make(
+              copyBackTempVar.scopeFrameOffset, localVar.scopeFrameOffset),
+          CopyValue.LEN);
+      ctx.pushOp(Unbox.make(copyBackTempVar.scopeFrameOffset), Unbox.LEN);
+      valueSlot = copyBackTempVar.scopeFrameOffset;
+    }
+
+    ctx.pushOp(
+        ListSetIndexed.make(prevVar.scopeFrameOffset,
+            copyBackIndexVars[j].scopeFrameOffset, valueSlot),
+        ListSetIndexed.LEN);
+  }
 }

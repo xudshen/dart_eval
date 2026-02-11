@@ -11,9 +11,20 @@ import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
 import 'package:dart_eval/src/eval/compiler/statement/variable_declaration.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
 
+/// Check if an AST node contains any FunctionExpression descendants.
+/// Used to detect closures inside for-loop bodies that may capture loop vars.
+bool _containsFunctionExpression(AstNode node) {
+  if (node is FunctionExpression) return true;
+  for (final child in node.childEntities) {
+    if (child is AstNode && _containsFunctionExpression(child)) return true;
+  }
+  return false;
+}
+
 StatementInfo compileForStatement(
     ForStatement s, CompilerContext ctx, AlwaysReturnType? expectedReturnType) {
   final parts = s.forLoopParts;
+  final bodyContainsClosure = _containsFunctionExpression(s.body);
 
   if (parts is ForEachParts) {
     final iterable = compileExpression(parts.iterable, ctx).boxIfNeeded(ctx);
@@ -29,6 +40,10 @@ StatementInfo compileForStatement(
 
     var iterator = iterable.getProperty(ctx, 'iterator');
     late Reference loopVariable;
+
+    final loopVarNames = parts is ForEachPartsWithDeclaration
+        ? [parts.loopVariable.name.lexeme]
+        : <String>[];
 
     return macroLoop(ctx, expectedReturnType,
         initialization: (ctx) {
@@ -71,10 +86,16 @@ StatementInfo compileForStatement(
         body: (ctx, ert) => compileStatement(s.body, ert, ctx),
         update: (ctx) =>
             loopVariable.setValue(ctx, iterator.getProperty(ctx, 'current')),
-        updateBeforeBody: true);
+        updateBeforeBody: true,
+        loopVariableNames: loopVarNames,
+        bodyContainsClosure: bodyContainsClosure);
   }
 
   parts as ForParts;
+
+  final cStyleLoopVarNames = parts is ForPartsWithDeclarations
+      ? parts.variables.variables.map((v) => v.name.lexeme).toList()
+      : <String>[];
 
   return macroLoop(ctx, expectedReturnType,
       initialization: (ctx) {
@@ -94,5 +115,7 @@ StatementInfo compileForStatement(
         for (final u in parts.updaters) {
           compileExpressionAndDiscardResult(u, ctx);
         }
-      });
+      },
+      loopVariableNames: cStyleLoopVarNames,
+      bodyContainsClosure: bodyContainsClosure);
 }
