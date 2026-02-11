@@ -11,8 +11,9 @@ void _compileDeclarations(
   CompilerContext ctx,
   Map<int, Map<String, DeclarationOrBridge>> topLevelDeclarationsMap,
   Map<int, Map<String, Map<String, Declaration>>> instanceDeclarationsMap,
-  Map<int, Map<String, DeclarationOrPrefix>> visibleDeclarationsByIndex,
-) {
+  Map<int, Map<String, DeclarationOrPrefix>> visibleDeclarationsByIndex, [
+  List<_ExtensionEntry> extensionDeclarations = const [],
+]) {
   try {
     /// Compile statics first so we can infer their type
     topLevelDeclarationsMap.forEach((key, value) {
@@ -86,6 +87,34 @@ void _compileDeclarations(
         ctx.resetStack();
       });
     });
+
+    // Compile extension methods after all class/mixin declarations so that
+    // instanceDeclarationPositions[lib][className] already exists.
+    for (final ext in extensionDeclarations) {
+      final onType = ext.declaration.onClause?.extendedType;
+      if (onType is! NamedType) continue;
+      final typeName = onType.name2.lexeme;
+
+      // Resolve the on-type's class declaration via visibleTypes so that
+      // cross-library extensions work correctly.
+      final typeRef = ctx.visibleTypes[ext.libraryIndex]?[typeName];
+      final classLib = typeRef?.file ?? ext.libraryIndex;
+      final classDob = topLevelDeclarationsMap[classLib]?[typeName];
+      if (classDob == null || classDob.isBridge) continue;
+      final parent = classDob.declaration;
+      if (parent is! NamedCompilationUnitMember) continue;
+
+      ctx.library = classLib;
+      ctx.currentClass = parent;
+      for (final member in ext.declaration.members) {
+        if (member is MethodDeclaration && !member.isStatic) {
+          ctx.resetStack(position: 1);
+          compileDeclaration(member, ctx, parent: parent);
+        }
+      }
+      ctx.currentClass = null;
+      ctx.resetStack();
+    }
   } on CompileError catch (e, stk) {
     Error.throwWithStackTrace(e.copyWithContext(ctx), stk);
   }

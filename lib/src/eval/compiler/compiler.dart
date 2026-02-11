@@ -52,6 +52,7 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   var _topLevelDeclarationsMap = <int, Map<String, DeclarationOrBridge>>{};
   var _topLevelGlobalIndices = <int, Map<String, int>>{};
   var _instanceDeclarationsMap = <int, Map<String, Map<String, Declaration>>>{};
+  var _extensionDeclarations = <_ExtensionEntry>[];
 
   /// The semantic version of the compiled code, for runtime overrides
   String? version;
@@ -188,6 +189,7 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     _topLevelDeclarationsMap = <int, Map<String, DeclarationOrBridge>>{};
     _topLevelGlobalIndices = <int, Map<String, int>>{};
     _instanceDeclarationsMap = <int, Map<String, Map<String, Declaration>>>{};
+    _extensionDeclarations = <_ExtensionEntry>[];
     _bridgeStaticFunctionIdx = 0;
 
     // Create a compilation context
@@ -259,7 +261,8 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
 
     // Phase 3: Compile all declarations into bytecode
     _compileDeclarations(_ctx, _topLevelDeclarationsMap,
-        _instanceDeclarationsMap, linkResult.visibleDeclarationsByIndex);
+        _instanceDeclarationsMap, linkResult.visibleDeclarationsByIndex,
+        _extensionDeclarations);
 
     // Phase 4: Emit the final Program
     return _emitProgram(
@@ -317,6 +320,35 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     }
 
     final declaration = declarationOrBridge.declaration!;
+
+    if (declaration is ExtensionDeclaration) {
+      // Store extension declarations separately for later compilation
+      _extensionDeclarations.add(
+          _ExtensionEntry(libraryIndex, declaration));
+      // Register extension methods in instanceDeclarationsMap under the
+      // on-type so that compile-time method resolution can find them
+      final onType = declaration.onClause?.extendedType;
+      if (onType is NamedType) {
+        final typeName = onType.name2.lexeme;
+        _instanceDeclarationsMap[libraryIndex] ??= {};
+        _instanceDeclarationsMap[libraryIndex]![typeName] ??= {};
+        for (final member in declaration.members) {
+          if (member is MethodDeclaration) {
+            var mName = member.name.lexeme;
+            if (!member.isStatic) {
+              if (member.isGetter) {
+                mName += '*g';
+              } else if (member.isSetter) {
+                mName += '*s';
+              }
+              _instanceDeclarationsMap[libraryIndex]![typeName]![mName] =
+                  member;
+            }
+          }
+        }
+      }
+      return;
+    }
 
     if (declaration is TopLevelVariableDeclaration) {
       final vlist = declaration.variables;
@@ -583,4 +615,12 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   void addExportedLibraryMapping(String libraryUri, String exportUri) {
     // does nothing in compiler context
   }
+}
+
+/// Stores an [ExtensionDeclaration] together with its library index for
+/// deferred compilation in the compile phase.
+class _ExtensionEntry {
+  final int libraryIndex;
+  final ExtensionDeclaration declaration;
+  _ExtensionEntry(this.libraryIndex, this.declaration);
 }
