@@ -93,35 +93,9 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentList(
         paramType = TypeRef.fromAnnotation(ctx, decLibrary, typeAnnotation);
       }
 
-      var arg0 = compileExpression(arg, ctx, paramType);
-      if (parameterHost is MethodDeclaration ||
-          !paramType.isUnboxedAcrossFunctionBoundaries) {
-        arg0 = arg0.boxIfNeeded(ctx);
-      } else if (paramType.isUnboxedAcrossFunctionBoundaries) {
-        arg0 = arg0.unboxIfNeeded(ctx);
-      }
-
-      if (arg0.type == CoreTypes.function.ref(ctx) &&
-          arg0.scopeFrameOffset == -1) {
-        arg0 = arg0.tearOff(ctx);
-      }
-
-      if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
-        throw CompileError(
-            'Cannot assign argument of type ${arg0.type.toStringClear(ctx, paramType)} '
-            'to parameter "${param.name!.lexeme}" of type ${paramType.toStringClear(ctx, arg0.type)}',
-            source ?? parameterHost);
-      }
-
-      if (typeAnnotation != null) {
-        final n = typeAnnotation is NamedType
-            ? (typeAnnotation.name2.stringValue ?? typeAnnotation.name2.lexeme)
-            : null;
-        if (n != null && resolveGenerics.containsKey(n)) {
-          resolveGenericsMap[n] ??= {};
-          resolveGenericsMap[n]!.add(arg0.type);
-        }
-      }
+      final arg0 = _compileAndValidateArg(ctx, arg, paramType, parameterHost,
+          param.name!.lexeme, typeAnnotation, resolveGenerics, resolveGenericsMap,
+          source: source);
 
       args.add(arg0);
       push.add(arg0);
@@ -164,35 +138,9 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentList(
     }
 
     if (namedExpr.containsKey(name)) {
-      var arg0 = compileExpression(namedExpr[name]!, ctx, paramType);
-      if (parameterHost is MethodDeclaration ||
-          !paramType.isUnboxedAcrossFunctionBoundaries) {
-        arg0 = arg0.boxIfNeeded(ctx);
-      } else if (paramType.isUnboxedAcrossFunctionBoundaries) {
-        arg0 = arg0.unboxIfNeeded(ctx);
-      }
-
-      if (arg0.type == CoreTypes.function.ref(ctx) &&
-          arg0.scopeFrameOffset == -1) {
-        arg0 = arg0.tearOff(ctx);
-      }
-
-      if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
-        throw CompileError(
-            'Cannot assign argument of type ${arg0.type.toStringClear(ctx, paramType)}'
-            ' to parameter "${param.name!.lexeme}" of type ${paramType.toStringClear(ctx, arg0.type)}',
-            source ?? parameterHost);
-      }
-
-      if (typeAnnotation != null) {
-        final n = typeAnnotation is NamedType
-            ? (typeAnnotation.name2.stringValue ?? typeAnnotation.name2.lexeme)
-            : null;
-        if (n != null && resolveGenerics.containsKey(n)) {
-          resolveGenericsMap[n] ??= {};
-          resolveGenericsMap[n]!.add(arg0.type);
-        }
-      }
+      final arg0 = _compileAndValidateArg(ctx, namedExpr[name]!, paramType,
+          parameterHost, param.name!.lexeme, typeAnnotation, resolveGenerics,
+          resolveGenericsMap, source: source);
 
       push.add(arg0);
       namedArgs[name] = arg0;
@@ -538,6 +486,54 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentListWithBridge(
   }
 
   return Pair(args, namedArgs);
+}
+
+/// Compile an argument expression, apply boxing/tearoff, and validate type
+/// assignability. Used by [compileArgumentList] for both positional and named
+/// parameters to avoid duplicating the compile-box-tearoff-check pipeline.
+Variable _compileAndValidateArg(
+  CompilerContext ctx,
+  Expression expr,
+  TypeRef paramType,
+  Declaration parameterHost,
+  String paramName,
+  TypeAnnotation? typeAnnotation,
+  Map<String, TypeRef> resolveGenerics,
+  Map<String, Set<TypeRef>> resolveGenericsMap, {
+  AstNode? source,
+}) {
+  var arg0 = compileExpression(expr, ctx, paramType);
+
+  if (parameterHost is MethodDeclaration ||
+      !paramType.isUnboxedAcrossFunctionBoundaries) {
+    arg0 = arg0.boxIfNeeded(ctx);
+  } else if (paramType.isUnboxedAcrossFunctionBoundaries) {
+    arg0 = arg0.unboxIfNeeded(ctx);
+  }
+
+  if (arg0.type == CoreTypes.function.ref(ctx) &&
+      arg0.scopeFrameOffset == -1) {
+    arg0 = arg0.tearOff(ctx);
+  }
+
+  if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
+    throw CompileError(
+        'Cannot assign argument of type ${arg0.type.toStringClear(ctx, paramType)}'
+        ' to parameter "$paramName" of type ${paramType.toStringClear(ctx, arg0.type)}',
+        source ?? parameterHost);
+  }
+
+  if (typeAnnotation != null) {
+    final n = typeAnnotation is NamedType
+        ? (typeAnnotation.name2.stringValue ?? typeAnnotation.name2.lexeme)
+        : null;
+    if (n != null && resolveGenerics.containsKey(n)) {
+      resolveGenericsMap[n] ??= {};
+      resolveGenericsMap[n]!.add(arg0.type);
+    }
+  }
+
+  return arg0;
 }
 
 TypeRef _resolveFieldFormalType(CompilerContext ctx, int decLibrary,
