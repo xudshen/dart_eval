@@ -590,7 +590,12 @@ class LogicalNot extends EvcOp {
   @override
   void run(Runtime runtime) {
     final frame = runtime.frame;
-    frame[runtime.frameOffset++] = !(frame[_index] as bool);
+    final value = frame[_index];
+    if (value is $bool) {
+      frame[runtime.frameOffset++] = !(value.$value);
+    } else {
+      frame[runtime.frameOffset++] = !(value as bool);
+    }
   }
 
   @override
@@ -609,7 +614,9 @@ class BoxBool implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $bool(runtime.frame[reg] as bool);
+    final value = runtime.frame[reg];
+    if (value is $bool) return; // Already boxed (e.g. from user-defined operator==)
+    runtime.frame[reg] = $bool(value as bool);
   }
 
   @override

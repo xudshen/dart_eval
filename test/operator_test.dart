@@ -39,7 +39,7 @@ void main() {
       expect(runtime.executeLib('package:operator_test/main.dart', 'main'), [
         $bool(false), $bool(false), $bool(true), $bool(true),
       ]);
-    }, skip: true);
+    });
 
     test('Operator has object context', () {
       final runtime = compiler.compileWriteAndLoad({
@@ -54,8 +54,8 @@ void main() {
         }
       });
 
-      expect(runtime.executeLib('package:operator_test/main.dart', 'main'), 4);
-    }, skip: true);
+      expect(runtime.executeLib('package:operator_test/main.dart', 'main'), 2);
+    });
 
     test('Operator []', () {
       final runtime = compiler.compileWriteAndLoad({
@@ -85,6 +85,51 @@ void main() {
       expect(runtime.executeLib('package:operator_test/main.dart', 'main'), [
         $int(1), $int(2),
       ]);
-    }, skip: true);
+    }, skip: 'Requires fix for list field type inference (specifiedTypeArgs)');
+
+    test('Operator - (subtraction)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'operator_test': {
+          'main.dart': '''
+            class Vec2 {
+              final int x;
+              final int y;
+              Vec2(this.x, this.y);
+              Vec2 operator+(Vec2 other) => Vec2(x + other.x, y + other.y);
+              Vec2 operator-(Vec2 other) => Vec2(x - other.x, y - other.y);
+            }
+            List<int> main() {
+              final a = Vec2(3, 4);
+              final b = Vec2(1, 2);
+              final sum = a + b;
+              final diff = a - b;
+              return [sum.x, sum.y, diff.x, diff.y];
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:operator_test/main.dart', 'main'),
+          [$int(4), $int(6), $int(2), $int(2)]);
+    });
+
+    test('Operator < and >', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'operator_test': {
+          'main.dart': '''
+            class Temp {
+              final int value;
+              Temp(this.value);
+              bool operator<(Temp other) => value < other.value;
+              bool operator>(Temp other) => value > other.value;
+            }
+            List<bool> main() {
+              return [Temp(36) < Temp(37), Temp(38) > Temp(37)];
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:operator_test/main.dart', 'main'),
+          [$bool(true), $bool(true)]);
+    });
   });
 }

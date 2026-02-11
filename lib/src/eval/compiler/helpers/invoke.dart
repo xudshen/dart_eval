@@ -169,6 +169,15 @@ extension Invoke on Variable {
           CheckEq.make($this.scopeFrameOffset, args0[0].scopeFrameOffset),
           CheckEq.LEN);
     } else {
+      // For eval (non-bridge) types, push $this as first arg since
+      // InvokeDynamic.$InstanceImpl methods expect this at frame[0].
+      // Bridge types don't need this as InvokeDynamic passes the object
+      // separately to $getProperty.
+      final typeDecl =
+          ctx.topLevelDeclarationsMap[$this.type.file]?[$this.type.name];
+      if (typeDecl != null && !typeDecl.isBridge) {
+        ctx.pushOp(PushArg.make($this.scopeFrameOffset), PushArg.LEN);
+      }
       for (final invokeArg in args0) {
         ctx.pushOp(PushArg.make(invokeArg.scopeFrameOffset), PushArg.LEN);
       }
