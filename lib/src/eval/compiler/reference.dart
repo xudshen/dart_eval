@@ -39,6 +39,7 @@ class IdentifierReference implements Reference {
   @override
   TypeRef resolveType(CompilerContext ctx,
       {bool forSet = false, AstNode? source}) {
+    // 1. Object property access
     if (object != null) {
       if (object!.type == CoreTypes.type.ref(ctx)) {
         return object!.concreteTypes[0].resolveTypeChain(ctx);
@@ -48,48 +49,57 @@ class IdentifierReference implements Reference {
           CoreTypes.dynamic.ref(ctx);
     }
 
-    // Locals
+    // 2. Local variable
     final local = ctx.lookupLocal(name);
-    if (local != null) {
-      return local.type;
-    }
+    if (local != null) return local.type;
 
-    // Instance
+    // 3. Instance/static member of current class
     if (ctx.currentClass != null) {
-      final instanceDeclaration = resolveInstanceDeclaration(
-          ctx, ctx.library, ctx.currentClass!.name.lexeme, name);
-      if (instanceDeclaration != null) {
-        final $type = instanceDeclaration.first;
-        return TypeRef.lookupFieldType(ctx, $type, name, forSet: forSet) ??
-            CoreTypes.dynamic.ref(ctx);
-      }
-
-      final staticDeclaration = resolveStaticDeclaration(
-          ctx, ctx.library, ctx.currentClass!.name.lexeme, name);
-
-      if (staticDeclaration != null && staticDeclaration.declaration != null) {
-        final staticDec = staticDeclaration.declaration!;
-        if (staticDec is MethodDeclaration) {
-          return CoreTypes.function.ref(ctx);
-        } else if (staticDec is VariableDeclaration) {
-          final name =
-              '${ctx.currentClass!.name.lexeme}.${staticDec.name.lexeme}';
-          return ctx.topLevelVariableInferredTypes[ctx.library]![name]!;
-        }
-      }
+      final resolved = _resolveClassMember(ctx, forSet: forSet, source: source);
+      if (resolved != null) return resolved;
     }
 
+    // 4. Top-level declaration
+    return _resolveTopLevel(ctx, source: source);
+  }
+
+  TypeRef? _resolveClassMember(CompilerContext ctx,
+      {bool forSet = false, AstNode? source}) {
+    final instanceDeclaration = resolveInstanceDeclaration(
+        ctx, ctx.library, ctx.currentClass!.name.lexeme, name);
+    if (instanceDeclaration != null) {
+      return TypeRef.lookupFieldType(ctx, instanceDeclaration.first, name,
+              forSet: forSet) ??
+          CoreTypes.dynamic.ref(ctx);
+    }
+
+    final staticDeclaration = resolveStaticDeclaration(
+        ctx, ctx.library, ctx.currentClass!.name.lexeme, name);
+    if (staticDeclaration == null || staticDeclaration.declaration == null) {
+      return null;
+    }
+
+    final staticDec = staticDeclaration.declaration!;
+    if (staticDec is MethodDeclaration) {
+      return CoreTypes.function.ref(ctx);
+    }
+    if (staticDec is VariableDeclaration) {
+      final fqName = '${ctx.currentClass!.name.lexeme}.${staticDec.name.lexeme}';
+      return ctx.topLevelVariableInferredTypes[ctx.library]![fqName]!;
+    }
+    return null;
+  }
+
+  TypeRef _resolveTopLevel(CompilerContext ctx, {AstNode? source}) {
     final declaration = ctx.visibleDeclarations[ctx.library]![name] ??
         (throw CompileError('Could not find declaration "$name"', source));
     final declarationValue = declaration.declaration ?? (throw PrefixError());
-
     final decl = declarationValue.declaration!;
 
     if (decl is VariableDeclaration) {
       return ctx.topLevelVariableInferredTypes[declarationValue.sourceLib]![
           decl.name.lexeme]!;
     }
-
     return CoreTypes.type.ref(ctx);
   }
 
