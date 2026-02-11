@@ -20,10 +20,11 @@ created in the interpreter to be used outside it.
 dart_eval's compiler is powered under the hood by the Dart 
 [analyzer](https://pub.dev/packages/analyzer), so it achieves 100% correct and 
 up-to-date parsing. While compilation and execution aren't quite there yet, dart_eval
-has over 300 tests that are run in CI to ensure correctness.
+has over 400 tests that are run in CI to ensure correctness.
 
-Currently dart_eval implements a majority of the Dart spec, but there 
-are still missing features like generators and extension methods.
+Currently dart_eval implements a majority of the Dart spec, including mixins,
+extension methods (on eval types), switch expressions, typedefs, late variables,
+and custom operator overloading. Some features like generators are still missing.
 In addition, parts of the standard library haven't been implemented. See the
 [language feature support table](#language-feature-support-table) for details.
 
@@ -528,7 +529,7 @@ may vary when bridging.
 | For-each loops | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L54) |
 | Async for-each | ❌ | N/A |
 | Switch statements | ✅ | [20 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
-| Switch expressions | ❌ | N/A |
+| Switch expressions | ✅ | [3 tests](test/switch_expression_test.dart) |
 | Labels, `break` & `continue` | Partial | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L126), [+more](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
 | If statements | ✅ | [[1]](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L28) |
 | Try-catch | ✅ | [5 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L13)|
@@ -551,24 +552,25 @@ may vary when bridging.
 | `this` keyword | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L89) |
 | `super` keyword | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L319) |
 | Super constructor params | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L277) |
-| Mixins | ❌ | N/A |
+| Mixins | ✅ | [3 tests](test/mixin_test.dart) |
+| Operator overloading | ✅ | [5 tests](test/operator_test.dart) |
 | Futures | Partial | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/async_test.dart#L69) |
 | Async/await | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/async_test.dart#L13) |
-| Streams | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/stdlib_test.dart#L172) |
+| Streams | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/stdlib_test.dart#L172), [4 tests](test/stream_methods_test.dart) |
 | String interpolation | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/stdlib_test.dart#L95) |
 | Enums | Partial | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/enum_test.dart#L12) |
 | Generic function types | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/function_test.dart#L302) |
-| Typedefs | ❌ | N/A |
+| Typedefs | ✅ | [3 tests](test/typedef_test.dart) |
 | Generic classes | Partial | ❌ |
 | Type tests (`is`) | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L12) |
 | Casting (`as`) | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L240) |
 | `assert` | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L287) |
 | Null safety | Partial | ❌ |
-| Late initialization | ❌ | N/A |
+| Late initialization | ✅ | [3 tests](test/late_variable_test.dart) |
 | Cascades | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L190) |
 | Ternary expressions | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L344) |
 | Null coalescing expressions | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L64) |
-| Extension methods | ❌ | N/A |
+| Extension methods | Partial | [1 test](test/extension_test.dart) (eval types only) |
 | Const expressions | Partial | N/A |
 | Isolates | ❌ | N/A |
 | Record types | Partial | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/records_test.dart#L12) |
