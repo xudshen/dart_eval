@@ -48,6 +48,15 @@ void _compileDeclarations(
             ctx.resetStack();
           }
           ctx.currentClass = null;
+        } else if (declaration is MixinDeclaration) {
+          ctx.currentClass = declaration;
+          for (final d in declaration.members
+              .whereType<FieldDeclaration>()
+              .where((e) => e.isStatic)) {
+            compileFieldDeclaration(-1, d, ctx, declaration);
+            ctx.resetStack();
+          }
+          ctx.currentClass = null;
         }
       });
     });

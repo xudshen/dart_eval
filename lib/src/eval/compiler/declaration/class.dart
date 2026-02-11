@@ -49,6 +49,35 @@ void compileClassDeclaration(CompilerContext ctx, ClassDeclaration d,
       i += m.fields.variables.length;
     }
   }
+  // Merge mixin methods into this class's instance declaration positions
+  if (d.withClause != null) {
+    final classPositions =
+        ctx.instanceDeclarationPositions[ctx.library]![clsName]!;
+    final classGetterIndices =
+        ctx.instanceGetterIndices[ctx.library]![clsName]!;
+    for (final mixinType in d.withClause!.mixinTypes) {
+      final mixinName = mixinType.name2.lexeme;
+      final mixinPositions =
+          ctx.instanceDeclarationPositions[ctx.library]?[mixinName];
+      if (mixinPositions == null) continue;
+      // Merge getters (index 0), setters (index 1), methods (index 2)
+      for (var idx = 0; idx < 3; idx++) {
+        final mixinMap = mixinPositions[idx] as Map;
+        final classMap = classPositions[idx] as Map;
+        for (final entry in mixinMap.entries) {
+          classMap.putIfAbsent(entry.key, () => entry.value);
+        }
+      }
+      // Merge getter indices
+      final mixinGetterIndices =
+          ctx.instanceGetterIndices[ctx.library]?[mixinName];
+      if (mixinGetterIndices != null) {
+        for (final entry in mixinGetterIndices.entries) {
+          classGetterIndices.putIfAbsent(entry.key, () => entry.value);
+        }
+      }
+    }
+  }
   ctx.currentClass = null;
   ctx.resetStack();
 }

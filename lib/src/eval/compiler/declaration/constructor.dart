@@ -184,9 +184,9 @@ void compileConstructorDeclaration(
     return;
   }
 
-  final $extends = parent is EnumDeclaration
-      ? null
-      : (parent as ClassDeclaration).extendsClause;
+  final $extends = parent is ClassDeclaration
+      ? parent.extendsClause
+      : null;
   Variable $super;
   DeclarationOrPrefix? extendsWhat;
   DeclarationOrBridge? extendsDecl;
@@ -396,9 +396,9 @@ void compileDefaultConstructor(CompilerContext ctx,
   final fieldIndices = _getFieldIndices(fields);
   final fieldIdx = fieldIndices.length;
 
-  final $extends = parent is EnumDeclaration
-      ? null
-      : (parent as ClassDeclaration).extendsClause;
+  final $extends = parent is ClassDeclaration
+      ? parent.extendsClause
+      : null;
   Variable $super;
   DeclarationOrPrefix? extendsWhat;
   DeclarationOrBridge? extendsDecl;

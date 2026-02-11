@@ -8,6 +8,7 @@ import 'package:dart_eval/src/eval/compiler/declaration/enum.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/field.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/function.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/method.dart';
+import 'package:dart_eval/src/eval/compiler/declaration/mixin.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/variable.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 
@@ -32,6 +33,8 @@ int? compileDeclaration(Declaration d, CompilerContext ctx,
     compileTopLevelVariableDeclaration(d, ctx);
   } else if (d is EnumConstantDeclaration) {
     // do nothing
+  } else if (d is MixinDeclaration) {
+    compileMixinDeclaration(ctx, d);
   } else if (d is TypeAlias) {
     // Typedefs are resolved at type-resolution time, no bytecode needed
   } else {

@@ -351,11 +351,15 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       _topLevelDeclarationsMap[libraryIndex]![name] =
           DeclarationOrBridge(libraryIndex, declaration: declaration);
 
-      if (declaration is ClassDeclaration || declaration is EnumDeclaration) {
+      if (declaration is ClassDeclaration ||
+          declaration is EnumDeclaration ||
+          declaration is MixinDeclaration) {
         _instanceDeclarationsMap[libraryIndex]![name] = {};
         final members = declaration is ClassDeclaration
             ? declaration.members
-            : (declaration as EnumDeclaration).members;
+            : declaration is MixinDeclaration
+                ? declaration.members
+                : (declaration as EnumDeclaration).members;
 
         if (declaration is EnumDeclaration) {
           _ctx.enumValueIndices[libraryIndex] ??= {};
@@ -457,7 +461,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
           fileRef: libraryIndex);
     } else {
       final declaration = declarationOrBridge.declaration!;
-      if (declaration is! ClassDeclaration && declaration is! EnumDeclaration) {
+      if (declaration is! ClassDeclaration &&
+          declaration is! EnumDeclaration &&
+          declaration is! MixinDeclaration) {
         return null;
       }
       final name = (declaration as NamedCompilationUnitMember).name.lexeme;

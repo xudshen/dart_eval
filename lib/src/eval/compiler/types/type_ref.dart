@@ -555,13 +555,23 @@ class TypeRef {
       final extendsClause = dec is ClassDeclaration ? dec.extendsClause : null;
       final withClause = dec is ClassDeclaration
           ? dec.withClause
-          : (dec as EnumDeclaration).withClause;
+          : dec is EnumDeclaration
+              ? dec.withClause
+              : null;
       final implementsClause = dec is ClassDeclaration
           ? dec.implementsClause
-          : (dec as EnumDeclaration).implementsClause;
+          : dec is EnumDeclaration
+              ? dec.implementsClause
+              : dec is MixinDeclaration
+                  ? dec.implementsClause
+                  : null;
       final typeParameters = dec is ClassDeclaration
           ? dec.typeParameters
-          : (dec as EnumDeclaration).typeParameters;
+          : dec is EnumDeclaration
+              ? dec.typeParameters
+              : dec is MixinDeclaration
+                  ? dec.typeParameters
+                  : null;
       superName = extendsClause?.superclass;
       withNames = withClause?.mixinTypes.toList() ?? [];
       implementsNames = implementsClause?.interfaces.toList() ?? [];
