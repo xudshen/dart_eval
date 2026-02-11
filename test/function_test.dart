@@ -3,6 +3,8 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/stdlib/core.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
   group('Function tests', () {
     late Compiler compiler;
@@ -49,22 +51,18 @@ void main() {
     });
 
     test('Recursion (fibonacci)', () {
-      final runtime = compiler.compileWriteAndLoad({
-        'example': {
-          'main.dart': '''
+      expect(
+          evalMain('''
             int fib(int n) {
               if (n <= 1) return 1;
               return fib(n - 1) + fib(n - 2);
             }
-            
+
             int main () {
               return fib(24);
             }
-          '''
-        }
-      });
-
-      expect(runtime.executeLib('package:example/main.dart', 'main'), 75025);
+          '''),
+          75025);
     });
 
     test('Multiple files, boxed ints and correct stack handling', () {
@@ -104,40 +102,32 @@ void main() {
     });
 
     test('Basic anonymous function', () {
-      final runtime = compiler.compileWriteAndLoad({
-        'example': {
-          'main.dart': '''
+      expect(
+          evalMain('''
             Function r() {
               return () {
                 return 2;
               };
             }
-            
+
             int main () {
               return r()();
             }
-           '''
-        }
-      });
-
-      expect(runtime.executeLib('package:example/main.dart', 'main'), 2);
+           '''),
+          2);
     });
 
     test('Basic inline anonymous function', () {
-      final runtime = compiler.compileWriteAndLoad({
-        'example': {
-          'main.dart': '''
+      expect(
+          evalMain('''
             int main () {
               var r = () {
                 return 2;
               };
               return r();
             }
-           '''
-        }
-      });
-
-      expect(runtime.executeLib('package:example/main.dart', 'main'), 2);
+           '''),
+          2);
     });
 
     test('Anonymous function with arg', () {
