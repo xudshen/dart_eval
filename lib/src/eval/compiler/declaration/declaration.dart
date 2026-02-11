@@ -32,6 +32,8 @@ int? compileDeclaration(Declaration d, CompilerContext ctx,
     compileTopLevelVariableDeclaration(d, ctx);
   } else if (d is EnumConstantDeclaration) {
     // do nothing
+  } else if (d is TypeAlias) {
+    // Typedefs are resolved at type-resolution time, no bytecode needed
   } else {
     throw CompileError('No support for ${d.runtimeType}');
   }

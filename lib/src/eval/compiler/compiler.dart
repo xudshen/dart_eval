@@ -227,6 +227,10 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     _ctx.visibleDeclarations = linkResult.visibleDeclarationsByIndex;
     _ctx.visibleTypes = linkResult.visibleTypesByIndex;
 
+    // Resolve typedef aliases: now that visibleTypes is populated,
+    // map each typedef name to the TypeRef of its aliased type.
+    _resolveTypeAliases();
+
     unboxedAcrossFunctionBoundaries = {
       CoreTypes.int.ref(_ctx),
       CoreTypes.double.ref(_ctx),
@@ -458,6 +462,41 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       }
       final name = (declaration as NamedCompilationUnitMember).name.lexeme;
       return TypeRef.cache(_ctx, libraryIndex, name, fileRef: libraryIndex);
+    }
+  }
+
+  /// Resolve typedef aliases after visibleTypes is populated.
+  ///
+  /// For each [GenericTypeAlias] in the declarations, resolve its target
+  /// type and register the alias name in [_ctx.visibleTypes] so that
+  /// [TypeRef.fromAnnotation] can find it.
+  void _resolveTypeAliases() {
+    for (final entry in _topLevelDeclarationsMap.entries) {
+      final libraryIndex = entry.key;
+      for (final decEntry in entry.value.entries) {
+        final dob = decEntry.value;
+        if (dob.isBridge) continue;
+        final declaration = dob.declaration;
+        if (declaration is! GenericTypeAlias) continue;
+
+        final aliasedType = declaration.type;
+        _ctx.visibleTypes[libraryIndex] ??= {};
+
+        if (aliasedType is GenericFunctionType) {
+          _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] =
+              CoreTypes.function.ref(_ctx);
+        } else if (aliasedType is NamedType) {
+          // Resolve named type alias (e.g. typedef StringList = List<String>)
+          _ctx.library = libraryIndex;
+          try {
+            final resolved =
+                TypeRef.fromAnnotation(_ctx, libraryIndex, aliasedType);
+            _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] = resolved;
+          } catch (_) {
+            // If the target type can't be resolved, skip this typedef
+          }
+        }
+      }
     }
   }
 

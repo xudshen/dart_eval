@@ -68,7 +68,8 @@ void _compileDeclarations(
         final declaration = tlDeclaration.declaration!;
         if (declaration is ConstructorDeclaration ||
             declaration is MethodDeclaration ||
-            declaration is VariableDeclaration) {
+            declaration is VariableDeclaration ||
+            declaration is TypeAlias) {
           return;
         }
         ctx.library = key;
