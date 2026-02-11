@@ -112,8 +112,8 @@ class Bindgen implements BridgeDeclarationRegistry {
     _exportedLibMappings[libraryUri] = exportUri;
   }
 
-  Future<String?> parse(
-      io.File src, String filename, String uri, bool all) async {
+  Future<String?> parse(io.File src, String filename, String uri, bool all,
+      {String evalOutputPrefix = ''}) async {
     final resourceProvider = PhysicalResourceProvider.INSTANCE;
     if (_contextCollection == null) {
       _contextCollection = AnalysisContextCollection(
@@ -130,7 +130,8 @@ class Bindgen implements BridgeDeclarationRegistry {
     final ctx = BindgenContext(filename, uri,
         all: all,
         bridgeDeclarations: _bridgeDeclarations,
-        exportedLibMappings: _exportedLibMappings);
+        exportedLibMappings: _exportedLibMappings,
+        evalOutputPrefix: evalOutputPrefix);
 
     if (analysisResult is ResolvedUnitResult) {
       // Access the resolved unit and analyze it
@@ -146,11 +147,19 @@ class Bindgen implements BridgeDeclarationRegistry {
       } else {
         for (final directive in analysisResult.unit.directives) {
           if (directive is ImportDirective) {
-            final uri = directive.uri.stringValue;
-            if (uri == null || uri.startsWith('package:eval_annotation')) {
+            var importUri = directive.uri.stringValue;
+            if (importUri == null ||
+                importUri.startsWith('package:eval_annotation')) {
               continue;
             }
-            ctx.imports.add(uri);
+            // When output dir differs from source dir, relative imports
+            // would break. Resolve them to absolute package URIs.
+            if (evalOutputPrefix.isNotEmpty &&
+                !importUri.startsWith('package:') &&
+                !importUri.startsWith('dart:')) {
+              importUri = Uri.parse(uri).resolve(importUri).toString();
+            }
+            ctx.imports.add(importUri);
           }
         }
       }

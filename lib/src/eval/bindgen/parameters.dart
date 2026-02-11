@@ -103,7 +103,7 @@ String argumentAccessor(
     if (needsCast) {
       final q = (param.isRequired ? '' : '?');
       paramBuffer.write(' as ${type.element3!.name3}$q');
-      paramBuffer.write(')$q.cast()');
+      paramBuffer.write(')$q.cast${castTypeArgsSuffix(type)}()');
     }
   }
   return paramBuffer.toString();

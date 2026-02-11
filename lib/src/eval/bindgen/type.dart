@@ -67,6 +67,9 @@ String? builtinTypeFrom(DartType type) {
   if (type is RecordType) {
     return 'CoreTypes.record';
   }
+  if (type is NeverType) {
+    return 'CoreTypes.never';
+  }
 
   final element = type.element3!;
   final lib = element.library2!;
@@ -111,7 +114,7 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
     bool wrapList = false,
     List<ElementAnnotation>? metadata,
     bool forCollection = false}) {
-  if (type is VoidType) {
+  if (type is VoidType || type is NeverType) {
     if (func) {
       return 'const \$null()';
     }
@@ -173,6 +176,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
   }
 
   if (type is DynamicType) {
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
     return '$unionStr\$Object($expr)';
   }
 
@@ -225,7 +229,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     final hasAnno = typeEl.metadata2.annotations
         .any((e) => e.element2?.displayName == 'Bind');
     if (hasAnno) {
-      ctx.imports.add(uri.replaceAll('.dart', '.eval.dart'));
+      ctx.imports.add(_evalImportUri(uri, ctx.evalOutputPrefix));
       return '$unionStr\$$name.wrap($expr)';
     } else if (ctx.bridgeDeclarations.containsKey(uri)) {
       final parsedUri = Uri.parse(uri);
@@ -323,4 +327,34 @@ String wrapFunctionType(BindgenContext ctx, FunctionType type, String expr) {
   buffer.write(
       '); return ${wrapVar(ctx, type.returnType, 'funcResult', func: true)}; })');
   return buffer.toString();
+}
+
+/// Returns the type argument suffix for `.cast()` on collection types.
+///
+/// For `Map<String, String>` returns `'<String, String>'`.
+/// For unparameterized or all-dynamic types returns `''`.
+String castTypeArgsSuffix(DartType type) {
+  if (type is ParameterizedType) {
+    final args = type.typeArguments;
+    if (args.isNotEmpty && args.every((a) => a is! DynamicType)) {
+      return '<${args.map((a) => a.getDisplayString()).join(', ')}>';
+    }
+  }
+  return '';
+}
+
+/// Convert a source library URI to its .eval.dart import URI, inserting
+/// [prefix] after the package name when non-empty.
+///
+/// Example with prefix `_eval`:
+///   `package:fab_core/src/bundle_context.dart`
+///   → `package:fab_core/_eval/src/bundle_context.eval.dart`
+String _evalImportUri(String uri, String prefix) {
+  final evalUri = uri.replaceAll('.dart', '.eval.dart');
+  if (prefix.isEmpty) return evalUri;
+  final firstSlash = evalUri.indexOf('/');
+  if (firstSlash == -1) return evalUri;
+  return '${evalUri.substring(0, firstSlash + 1)}'
+      '$prefix/'
+      '${evalUri.substring(firstSlash + 1)}';
 }

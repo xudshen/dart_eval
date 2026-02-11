@@ -48,13 +48,16 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
         returnType.isDartCoreSet;
     final q =
         returnType.nullabilitySuffix == NullabilitySuffix.question ? '?' : '';
+    final castSuffix = needsCast
+        ? 'as ${returnType.element3!.name3}$q)$q.cast${castTypeArgsSuffix(returnType)}()'
+        : '';
 
     return '''
         @override
         $returnType ${e.displayName}(${parameterHeader(e.formalParameters)}) =>
           ${needsCast ? '(' : ''}\$_invoke('${e.displayName}', [
             ${e.formalParameters.map((p) => wrapVar(ctx, p.type, p.name3 ?? '')).join(', ')}
-          ])${needsCast ? 'as ${returnType.element3!.name3}$q)$q.cast()' : ''};
+          ])$castSuffix;
         ''';
   }).join('\n');
 }

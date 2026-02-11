@@ -91,6 +91,11 @@ Future<BindResult> bind({
   final effectiveOutputDir = outputDir ?? 'lib';
   final outputBasePath = join(projectRoot.path, effectiveOutputDir);
 
+  // Prefix for cross-package eval imports (e.g. '_eval' for lib/_eval/)
+  final evalOutputPrefix = outputDir != null && outputDir != 'lib'
+      ? relative(outputDir, from: 'lib')
+      : '';
+
   Future<void> bindLoop(String pkg, Directory dir, String root) async {
     if (!dir.existsSync()) return;
     for (final file in dir.listSync()) {
@@ -101,7 +106,8 @@ Future<BindResult> bind({
         final p = relative(file.path, from: root).replaceAll('\\', '/');
         if (excludes.any((e) => e.matches(p))) continue;
         final uri = 'package:${posix.join(packageName, p)}';
-        final output = await bindgen.parse(file, filename, uri, all);
+        final output = await bindgen.parse(file, filename, uri, all,
+            evalOutputPrefix: evalOutputPrefix);
         if (output != null) {
           if (verbose) print('Bound ${file.path}');
           boundFiles.add(file.path);
