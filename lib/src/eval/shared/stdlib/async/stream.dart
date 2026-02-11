@@ -688,8 +688,18 @@ class $Stream implements $Instance {
         return __singleWhere;
       case 'skip':
         return __skip;
+      case 'skipWhile':
+        return __skipWhile;
+      case 'take':
+        return __take;
+      case 'takeWhile':
+        return __takeWhile;
+      case 'toList':
+        return __toList;
       case 'transform':
         return __transform;
+      case 'where':
+        return __where;
       default:
         return _superclass.$getProperty(runtime, identifier);
     }
@@ -922,6 +932,60 @@ class $Stream implements $Instance {
     final $Stream $target = target as $Stream;
     final count = args[0] as $int;
     return $Stream.wrap($target.$value.skip(count.$value));
+  }
+
+  static const $Function __skipWhile = $Function(_skipWhile);
+
+  static $Value _skipWhile(
+      Runtime runtime, $Value? target, List<$Value?> args) {
+    final $Stream $target = target as $Stream;
+    final test = args[0] as EvalCallable;
+    return $Stream.wrap($target.$value.skipWhile((event) {
+      return (test.call(runtime, null, [runtime.wrap(event)]) as $Value)
+              .$value
+          as bool;
+    }));
+  }
+
+  static const $Function __take = $Function(_take);
+
+  static $Value _take(Runtime runtime, $Value? target, List<$Value?> args) {
+    final $Stream $target = target as $Stream;
+    final count = args[0] as $int;
+    return $Stream.wrap($target.$value.take(count.$value));
+  }
+
+  static const $Function __takeWhile = $Function(_takeWhile);
+
+  static $Value _takeWhile(
+      Runtime runtime, $Value? target, List<$Value?> args) {
+    final $Stream $target = target as $Stream;
+    final test = args[0] as EvalCallable;
+    return $Stream.wrap($target.$value.takeWhile((event) {
+      return (test.call(runtime, null, [runtime.wrap(event)]) as $Value)
+              .$value
+          as bool;
+    }));
+  }
+
+  static const $Function __toList = $Function(_toList);
+
+  static $Value _toList(Runtime runtime, $Value? target, List<$Value?> args) {
+    final $Stream $target = target as $Stream;
+    return $Future.wrap(
+        (() async => $List.wrap(await $target.$value.toList()))());
+  }
+
+  static const $Function __where = $Function(_where);
+
+  static $Value _where(Runtime runtime, $Value? target, List<$Value?> args) {
+    final $Stream $target = target as $Stream;
+    final test = args[0] as EvalCallable;
+    return $Stream.wrap($target.$value.where((event) {
+      return (test.call(runtime, null, [runtime.wrap(event)]) as $Value)
+              .$value
+          as bool;
+    }));
   }
 
   static const $Function __transform = $Function(_transform);
