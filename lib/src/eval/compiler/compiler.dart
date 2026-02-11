@@ -26,6 +26,7 @@ import 'package:dart_eval/src/eval/shared/stdlib/typed_data.dart';
 import 'package:directed_graph/directed_graph.dart';
 
 import 'context.dart';
+import 'debug/scope_dump.dart';
 import 'errors.dart';
 
 part 'phases/parse_phase.dart';
@@ -164,12 +165,13 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   ///   }
   /// }
   ///```
-  Program compile(Map<String, Map<String, String>> packages) {
+  Program compile(Map<String, Map<String, String>> packages,
+      {ScopeRecorder? scopeRecorder}) {
     final sources = packages.entries.expand((packageEntry) =>
         packageEntry.value.entries.map((library) => DartSource(
             'package:${packageEntry.key}/${library.key}', library.value)));
 
-    return compileSources(sources);
+    return compileSources(sources, true, scopeRecorder);
   }
 
   /// Compile a unit set of Dart code into a program.
@@ -180,7 +182,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   /// 3. Compile — compile declarations into bytecode
   /// 4. Emit — resolve types and produce the final [Program]
   Program compileSources(
-      [Iterable<DartSource> sources = const [], bool debugPerf = true]) {
+      [Iterable<DartSource> sources = const [],
+      bool debugPerf = true,
+      ScopeRecorder? scopeRecorder]) {
     _topLevelDeclarationsMap = <int, Map<String, DeclarationOrBridge>>{};
     _topLevelGlobalIndices = <int, Map<String, int>>{};
     _instanceDeclarationsMap = <int, Map<String, Map<String, Declaration>>>{};
@@ -188,6 +192,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
 
     // Create a compilation context
     _ctx = CompilerContext(0, version: version);
+    if (scopeRecorder != null) {
+      _ctx.scopeRecorder = scopeRecorder;
+    }
 
     for (final plugin in _plugins) {
       if (!_appliedPlugins.contains(plugin.identifier)) {
@@ -257,8 +264,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
 
   /// For testing purposes. Compile code, write it to a byte stream, load it,
   /// and run it.
-  Runtime compileWriteAndLoad(Map<String, Map<String, String>> packages) {
-    final program = compile(packages);
+  Runtime compileWriteAndLoad(Map<String, Map<String, String>> packages,
+      {ScopeRecorder? scopeRecorder}) {
+    final program = compile(packages, scopeRecorder: scopeRecorder);
 
     final ob = program.write();
 

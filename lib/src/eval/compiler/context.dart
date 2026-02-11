@@ -16,6 +16,8 @@ import 'package:dart_eval/src/eval/runtime/ops/all_ops.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
 import 'package:dart_eval/src/eval/runtime/type.dart';
 
+import 'package:dart_eval/src/eval/compiler/debug/scope_dump.dart';
+
 import 'offset_tracker.dart';
 
 abstract class AbstractScopeContext {
@@ -206,6 +208,10 @@ class CompilerContext with ScopeContext {
   int globalIndex = 0;
   String? version;
 
+  /// Optional scope recorder. When set, records scope events that can be
+  /// dumped via [ScopeRecorder.dump()] for debugging variable-to-slot mappings.
+  ScopeRecorder? scopeRecorder;
+
   final signaturePool = FunctionSignaturePool();
   final constantPool = ConstantPool<Object>();
   final runtimeTypes = ConstantPool<RuntimeTypeSet>();
@@ -231,13 +237,20 @@ class CompilerContext with ScopeContext {
     super.beginAllocScope(
         existingAllocLen: existingAllocLen,
         requireNonlinearAccess: requireNonlinearAccess);
-    if (preScan?.closedFrames.contains(locals.length - 1) ?? false) {
+    final isClosure =
+        preScan?.closedFrames.contains(locals.length - 1) ?? false;
+    if (isClosure) {
       final ps = PushScope.make(sourceFile, -1, '#');
       pushOp(ps, PushScope.len(ps));
       scopeDoesClose.add(true);
     } else {
       scopeDoesClose.add(closure);
     }
+    scopeRecorder?.onBeginAllocScope(
+      depth: locals.length,
+      existingAllocLen: existingAllocLen,
+      isClosure: isClosure || closure,
+    );
   }
 
   @override
@@ -332,12 +345,26 @@ class CompilerContext with ScopeContext {
 
   @override
   int endAllocScope({bool popValues = true, int popAdjust = 0}) {
+    scopeRecorder?.onEndAllocScope(depth: locals.length);
     if (preScan?.closedFrames.contains(locals.length - 1) ?? false) {
       pushOp(PopScope.make(), PopScope.LEN);
       popValues = false;
     }
     scopeDoesClose.removeLast();
     return super.endAllocScope(popValues: popValues, popAdjust: popAdjust);
+  }
+
+  @override
+  Variable setLocal(String name, Variable v, {int? frame}) {
+    final result = super.setLocal(name, v, frame: frame);
+    scopeRecorder?.onSetLocal(
+      name: name,
+      scopeFrameOffset: v.scopeFrameOffset,
+      frameIndex: result.frameIndex ?? locals.length - 1,
+      boxed: v.boxed,
+      typeName: null,
+    );
+    return result;
   }
 
   int rewriteOp(int where, EvcOp newOp, int lengthAdjust) {

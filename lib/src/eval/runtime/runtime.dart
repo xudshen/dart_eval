@@ -36,6 +36,16 @@ part 'ops/objects.dart';
 
 part 'ops/bridge.dart';
 
+/// Enable stack synchronization assertions (debug mode).
+/// When true, asserts stack/scopeNameStack length match before every opcode.
+/// When false, compiler constant-folds away the check — zero overhead.
+const bool kDebugAssertStackSync = false;
+
+/// Enable execution tracing: prints opcode + VM state before and after each instruction.
+/// Output volume is extreme — only use when debugging a specific program.
+/// When false, compiler constant-folds away — zero overhead.
+const bool kDebugTraceExecution = false;
+
 typedef TypeAutowrapper = $Value? Function(dynamic);
 
 class ScopeFrame {
@@ -800,8 +810,25 @@ class Runtime {
     try {
       callFrames.add(CallFrame(-1));
       while (true) {
+        if (kDebugAssertStackSync) {
+          assert(
+            stack.length == scopeNameStack.length,
+            'Stack sync violated BEFORE op #$_prOffset: '
+            'stack.length=${stack.length} != scopeNameStack.length=${scopeNameStack.length}',
+          );
+        }
+        final opIdx = _prOffset;
         final op = pr[_prOffset++];
+        if (kDebugTraceExecution) {
+          print('[PRE  #$opIdx] $op | '
+              'frame.len=${frame.length} offset=$frameOffset | '
+              'stack.depth=${stack.length} offsets=$frameOffsetStack');
+        }
         op.run(this);
+        if (kDebugTraceExecution) {
+          print('[POST #$opIdx] offset=$frameOffset '
+              'stack.depth=${stack.length} offsets=$frameOffsetStack');
+        }
       }
     } on ProgramExit catch (_) {
       return returnValue;
@@ -823,8 +850,25 @@ class Runtime {
         .add(CallFrame(-1, catchFrame != null ? List<int>.of(catchFrame) : null));
     try {
       while (true) {
+        if (kDebugAssertStackSync) {
+          assert(
+            stack.length == scopeNameStack.length,
+            'Stack sync violated BEFORE op #$_prOffset in bridgeCall: '
+            'stack.length=${stack.length} != scopeNameStack.length=${scopeNameStack.length}',
+          );
+        }
+        final opIdx = _prOffset;
         final op = pr[_prOffset++];
+        if (kDebugTraceExecution) {
+          print('[PRE  #$opIdx (bridgeCall)] $op | '
+              'frame.len=${frame.length} offset=$frameOffset | '
+              'stack.depth=${stack.length} offsets=$frameOffsetStack');
+        }
         op.run(this);
+        if (kDebugTraceExecution) {
+          print('[POST #$opIdx (bridgeCall)] offset=$frameOffset '
+              'stack.depth=${stack.length} offsets=$frameOffsetStack');
+        }
       }
     } on ProgramExit catch (_) {
       _prOffset = savedOffset;
@@ -947,35 +991,44 @@ class RuntimeException implements Exception {
       }
       prStr += '\n';
     }
-    var scopeNames = '';
-    var scopes = runtime.scopeNameStack.reversed.toList();
-    // Print out up to 4 scope names from the end and 4 from the start, skipping
-    // those in the middle
-    int numScopes = scopes.length <= 8 ? scopes.length : 4;
 
-    for (int i = 0; i < numScopes && i < 4; i++) {
-      scopeNames += 'at ${scopes[i]}\n';
-    }
+    // Full scope name stack (reversed for readability — innermost first)
+    final scopeNames = runtime.scopeNameStack.reversed
+        .map((s) => '  at $s')
+        .join('\n');
 
-    if (scopes.length > 8) {
-      scopeNames += '...';
-    }
+    // Stack sample: safe for empty stack
+    final stackSample = runtime.stack.isEmpty
+        ? '<empty>'
+        : formatStackSample(runtime.stack.last, 10, runtime.frameOffset);
 
-    if (scopes.length > 4) {
-      for (int i = scopes.length - numScopes; i < scopes.length; i++) {
-        scopeNames += 'at ${scopes[i]}\n';
+    // Args sample
+    final argsSample = formatStackSample(runtime.args, 6);
+
+    // Globals summary: first 20 non-null entries
+    final nonNullGlobals = <String>[];
+    for (var i = 0; i < runtime.globals.length && nonNullGlobals.length < 20; i++) {
+      if (runtime.globals[i] != null) {
+        final v = runtime.globals[i];
+        final desc = v is String
+            ? '"${v.length > 30 ? '${v.substring(0, 30)}...' : v}"'
+            : '$v';
+        nonNullGlobals.add('G$i: $desc');
       }
     }
 
     return 'dart_eval runtime exception: $caughtException\n'
         '${stackTrace.toString().split("\n").take(3).join('\n')}\n'
-        '$scopeNames\n'
+        'Scope name stack:\n$scopeNames\n\n'
         'RUNTIME STATE\n'
         '=============\n'
         'Program offset: ${runtime._prOffset - 1}\n'
-        'Stack sample: ${formatStackSample(runtime.stack.last, 10, runtime.frameOffset)}\n'
-        'Args sample: ${formatStackSample(runtime.args, 6)}\n'
+        'Stack sample: $stackSample\n'
+        'Args sample: $argsSample\n'
         'Call frames: ${runtime.callFrames}\n'
+        'frameOffsetStack: ${runtime.frameOffsetStack}\n'
+        'catchStack depths: ${runtime.callFrames.map((e) => e.catchOffsets.length).toList()}\n'
+        'Globals (non-null): [${nonNullGlobals.join(', ')}]\n'
         'TRACE:\n$prStr';
   }
 }
