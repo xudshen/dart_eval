@@ -140,7 +140,7 @@ class Await implements EvcOp {
         frame: runtime.frame,
         frameOffset: runtime.frameOffset,
         args: [],
-        catchFrame: List<int>.of(runtime.catchStack.last));
+        catchFrame: List<int>.of(runtime.callFrames.last.catchOffsets));
 
     var future = runtime.frame[_futureOffset] as $Future;
     _suspend(runtime, continuation, future, completer);
@@ -154,12 +154,11 @@ class Await implements EvcOp {
       runtime.frameOffset = runtime.frameOffsetStack.removeLast();
     }
 
-    final prOffset = runtime.callStack.removeLast();
-    runtime.catchStack.removeLast();
-    if (prOffset == -1) {
+    final cf = runtime.callFrames.removeLast();
+    if (cf.returnAddress == -1) {
       throw ProgramExit(0);
     }
-    runtime._prOffset = prOffset;
+    runtime._prOffset = cf.returnAddress;
   }
 
   void _suspend(Runtime runtime, Continuation continuation, $Future future,

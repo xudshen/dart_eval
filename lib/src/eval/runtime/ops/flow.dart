@@ -14,8 +14,7 @@ class Call implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.callStack.add(runtime._prOffset);
-    runtime.catchStack.add([]);
+    runtime.callFrames.add(CallFrame(runtime._prOffset));
     runtime._prOffset = _offset;
   }
 
@@ -205,7 +204,7 @@ class Return implements EvcOp {
       runtime.frameOffset = runtime.frameOffsetStack.removeLast();
     }
 
-    runtime.catchStack.removeLast();
+    final cf = runtime.callFrames.removeLast();
     if (runtime.inCatch) {
       if (_location != -3) {
         runtime.catchControlFlowOutcome = 1;
@@ -213,11 +212,10 @@ class Return implements EvcOp {
       runtime.inCatch = false;
     }
 
-    final prOffset = runtime.callStack.removeLast();
-    if (prOffset == -1) {
+    if (cf.returnAddress == -1) {
       throw ProgramExit(0);
     }
-    runtime._prOffset = prOffset;
+    runtime._prOffset = cf.returnAddress;
   }
 
   @override
@@ -251,18 +249,17 @@ class ReturnAsync implements EvcOp {
 
     _suspend(completer, rv);
 
-    final prOffset = runtime.callStack.removeLast();
-    runtime.catchStack.removeLast();
+    final cf = runtime.callFrames.removeLast();
     if (runtime.inCatch) {
       if (_location != -3) {
         runtime.catchControlFlowOutcome = 1;
       }
       runtime.inCatch = false;
     }
-    if (prOffset == -1) {
+    if (cf.returnAddress == -1) {
       throw ProgramExit(0);
     }
-    runtime._prOffset = prOffset;
+    runtime._prOffset = cf.returnAddress;
   }
 
   void _suspend(Completer completer, dynamic value) async {
@@ -346,7 +343,7 @@ class Try implements EvcOp {
     runtime.catchControlFlowOutcome = -1;
     runtime.frameOffsetStack.add(runtime.frameOffset);
     if (_catchOffset > -1) {
-      runtime.catchStack.last.add(_catchOffset);
+      runtime.callFrames.last.catchOffsets.add(_catchOffset);
     }
   }
 
@@ -379,7 +376,7 @@ class PopCatch implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.catchStack.last.removeLast();
+    runtime.callFrames.last.catchOffsets.removeLast();
   }
 
   @override
@@ -420,9 +417,8 @@ class PushFinally implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.catchStack.last.add(-runtime._prOffset);
-    runtime.callStack.add(runtime._prOffset);
-    runtime.catchStack.add([]);
+    runtime.callFrames.last.catchOffsets.add(-runtime._prOffset);
+    runtime.callFrames.add(CallFrame(runtime._prOffset));
     runtime.stack.add(runtime.stack.last);
     runtime.scopeNameStack.add(runtime.scopeNameStack.last);
     runtime.frameOffsetStack.add(runtime.frameOffsetStack.last);

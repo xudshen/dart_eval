@@ -29,8 +29,7 @@ class InvokeDynamic implements EvcOp {
           object = object.evalSuperclass;
           continue;
         }
-        runtime.callStack.add(runtime._prOffset);
-        runtime.catchStack.add([]);
+        runtime.callFrames.add(CallFrame(runtime._prOffset));
         runtime._prOffset = offset;
         return;
       }
@@ -92,8 +91,7 @@ class InvokeDynamic implements EvcOp {
           for (i = 0; i < object.sortedNamedArgs.length; i++)
             if (cl > i) runtime.args[i + 3 + totalPositionalArgCount] else null
         ];
-        runtime.callStack.add(runtime._prOffset);
-        runtime.catchStack.add([]);
+        runtime.callFrames.add(CallFrame(runtime._prOffset));
         runtime._prOffset = object.offset;
         return;
       }
@@ -141,8 +139,7 @@ class CheckEq implements EvcOp {
           continue;
         }
         runtime.args = [v2];
-        runtime.callStack.add(runtime._prOffset);
-        runtime.catchStack.add([]);
+        runtime.callFrames.add(CallFrame(runtime._prOffset));
         runtime._prOffset = offset;
 
         return;
@@ -281,8 +278,7 @@ class PushObjectProperty implements EvcOp {
           return;
         }
         runtime.args.add(object);
-        runtime.callStack.add(runtime._prOffset);
-        runtime.catchStack.add([]);
+        runtime.callFrames.add(CallFrame(runtime._prOffset));
         runtime._prOffset = offset;
         return;
       }

@@ -110,8 +110,7 @@ class LoadGlobal implements EvcOp {
   void run(Runtime runtime) {
     var value = runtime.globals[_index];
     if (value == null) {
-      runtime.callStack.add(runtime._prOffset);
-      runtime.catchStack.add([]);
+      runtime.callFrames.add(CallFrame(runtime._prOffset));
       runtime._prOffset = runtime.globalInitializers[_index];
     } else {
       runtime.returnValue = value;

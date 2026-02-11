@@ -737,13 +737,10 @@ class Runtime {
   /// [frameOffset]s for each stack frame
   final frameOffsetStack = <int>[0];
 
-  /// The program's call stack. If a function returns it will pop the last
-  /// element from this stack and set [_prOffset] to the popped value.
-  final callStack = <int>[0];
-
-  /// The program's catch stack. If a function throws it will pop the last
-  /// element from this stack and set [_prOffset] to the popped value.
-  final catchStack = <List<int>>[];
+  /// Unified call frames replacing the old parallel `callStack` and
+  /// `catchStack`.  Each [CallFrame] holds the return address *and*
+  /// the catch-offset list for one function invocation.
+  final callFrames = <CallFrame>[];
 
   var declarations = <int, Map<String, int>>{};
   final declaredClasses = <int, Map<String, EvalClass>>{};
@@ -801,8 +798,7 @@ class Runtime {
     _setup();
     _prOffset = entrypoint;
     try {
-      callStack.add(-1);
-      catchStack.add([]);
+      callFrames.add(CallFrame(-1));
       while (true) {
         final op = pr[_prOffset++];
         op.run(this);
@@ -823,8 +819,8 @@ class Runtime {
   void bridgeCall(int $offset, {List<int>? catchFrame}) {
     final savedOffset = _prOffset;
     _prOffset = $offset;
-    callStack.add(-1);
-    catchStack.add(catchFrame != null ? List<int>.of(catchFrame) : []);
+    callFrames
+        .add(CallFrame(-1, catchFrame != null ? List<int>.of(catchFrame) : null));
     try {
       while (true) {
         final op = pr[_prOffset++];
@@ -845,10 +841,10 @@ class Runtime {
   /// Throw an exception from the VM. This will unwind the stack until a
   /// catch block is found.
   void $throw(dynamic exception) {
-    List<int> catchFrame;
+    CallFrame cf;
     while (true) {
-      catchFrame = catchStack.last;
-      if (catchFrame.isNotEmpty) {
+      cf = callFrames.last;
+      if (cf.catchOffsets.isNotEmpty) {
         break;
       }
       stack.removeLast();
@@ -857,14 +853,14 @@ class Runtime {
         frameOffset = frameOffsetStack.removeLast();
       }
 
-      catchStack.removeLast();
-      if (callStack.removeLast() == -1) {
+      callFrames.removeLast();
+      if (cf.returnAddress == -1) {
         throw exception is WrappedException
             ? exception
             : WrappedException(exception);
       }
     }
-    var catchOffset = catchFrame.removeLast();
+    var catchOffset = cf.catchOffsets.removeLast();
     if (catchOffset < 0) {
       rethrowException = exception;
       catchOffset = -catchOffset;
@@ -979,7 +975,7 @@ class RuntimeException implements Exception {
         'Program offset: ${runtime._prOffset - 1}\n'
         'Stack sample: ${formatStackSample(runtime.stack.last, 10, runtime.frameOffset)}\n'
         'Args sample: ${formatStackSample(runtime.args, 6)}\n'
-        'Call stack: ${runtime.callStack}\n'
+        'Call frames: ${runtime.callFrames}\n'
         'TRACE:\n$prStr';
   }
 }
