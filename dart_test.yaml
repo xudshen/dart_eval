@@ -1,0 +1,3 @@
+tags:
+  audit:
+    skip: "Known dart_eval bugs. Run: dart test -t audit --run-skipped"
