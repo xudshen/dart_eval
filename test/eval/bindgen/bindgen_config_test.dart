@@ -95,4 +95,147 @@ void main() {
       expect(bindgenLocal.registerClasses.first.uri, 'dart:math');
     });
   });
+
+  group('Bindgen.parseFromConfig() — bridge 模式', () {
+    late Bindgen bindgen;
+
+    setUpAll(() {
+      bindgen = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgen.inject(package: package);
+      }
+    });
+
+    test('bridge 模式生成 \$bridge 类', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Random',
+        overrideLibrary: 'dart:math',
+        isBridge: true,
+      );
+
+      expect(output, isNotNull);
+      expect(output, contains('\$Random\$bridge'),
+          reason: 'bridge 模式应生成 \$Random\$bridge 类');
+      expect(output, contains('\$Bridge<Random>'),
+          reason: 'bridge 类应 mixin \$Bridge<Random>');
+    });
+
+    test('bridge 模式注册名含 \$bridge 后缀', () async {
+      final bindgenLocal = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgenLocal.inject(package: package);
+      }
+
+      await bindgenLocal.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Random',
+        overrideLibrary: 'dart:math',
+        isBridge: true,
+      );
+
+      expect(bindgenLocal.registerClasses.first.name, 'Random\$bridge');
+    });
+  });
+
+  group('Bindgen.parseFromConfig() — 顶层函数', () {
+    late Bindgen bindgen;
+
+    setUpAll(() {
+      bindgen = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgen.inject(package: package);
+      }
+    });
+
+    test('为 min 函数生成绑定', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'min',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull, reason: '应为 min 生成绑定代码');
+      expect(output, contains('\$minFn'),
+          reason: '应生成 \$minFn 类');
+      expect(output, contains('EvalCallable'),
+          reason: '函数绑定应实现 EvalCallable');
+    });
+
+    test('为 max 函数生成绑定', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'max',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull);
+      expect(output, contains('\$maxFn'));
+    });
+
+    test('注册到 registerFunctions', () async {
+      final bindgenLocal = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgenLocal.inject(package: package);
+      }
+
+      await bindgenLocal.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'min',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(bindgenLocal.registerFunctions, hasLength(1));
+      expect(bindgenLocal.registerFunctions.first.name, 'min');
+      expect(bindgenLocal.registerFunctions.first.uri, 'dart:math');
+    });
+  });
+
+  group('Bindgen.parseFromConfig() — 边界情况', () {
+    late Bindgen bindgen;
+
+    setUpAll(() {
+      bindgen = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgen.inject(package: package);
+      }
+    });
+
+    test('不存在的类返回 null', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'NonExistentClass',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNull);
+    });
+
+    test('生成文件名为 snake_case', () async {
+      final bindgenLocal = Bindgen();
+      final projectRoot = findProjectRoot(Directory.current);
+      final packageConfig = getPackageConfig(projectRoot);
+      for (final package in packageConfig.packages) {
+        bindgenLocal.inject(package: package);
+      }
+
+      await bindgenLocal.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Random',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(bindgenLocal.registerClasses.first.file, 'random.eval.dart');
+    });
+  });
 }
