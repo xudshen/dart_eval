@@ -145,6 +145,18 @@ class Bindgen implements BridgeDeclarationRegistry {
       return null;
     }
 
+    // Skip generic types — bindgen generates $T.wrap() but $T doesn't exist
+    final hasTypeParams = switch (element) {
+      InterfaceElement2 e => e.typeParameters2.isNotEmpty,
+      TopLevelFunctionElement e => e.typeParameters2.isNotEmpty,
+      _ => false,
+    };
+    if (hasTypeParams) {
+      print('Warning: Skipping $className from $libraryUri '
+          '(generic types not yet supported)');
+      return null;
+    }
+
     final evalFilename = '${_toSnakeCase(className)}.eval.dart';
     final ctx = BindgenContext(evalFilename, overrideLibrary,
         all: true,

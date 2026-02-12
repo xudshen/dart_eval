@@ -142,7 +142,7 @@ void main() {
     });
   });
 
-  group('Bindgen.parseFromConfig() — 顶层函数', () {
+  group('Bindgen.parseFromConfig() — 泛型跳过', () {
     late Bindgen bindgen;
 
     setUpAll(() {
@@ -154,32 +154,37 @@ void main() {
       }
     });
 
-    test('为 min 函数生成绑定', () async {
+    test('泛型函数 min<T> 返回 null（跳过）', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'min',
         overrideLibrary: 'dart:math',
       );
 
-      expect(output, isNotNull, reason: '应为 min 生成绑定代码');
-      expect(output, contains('\$minFn'),
-          reason: '应生成 \$minFn 类');
-      expect(output, contains('EvalCallable'),
-          reason: '函数绑定应实现 EvalCallable');
+      expect(output, isNull, reason: '泛型函数应被跳过');
     });
 
-    test('为 max 函数生成绑定', () async {
+    test('泛型函数 max<T> 返回 null（跳过）', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'max',
         overrideLibrary: 'dart:math',
       );
 
-      expect(output, isNotNull);
-      expect(output, contains('\$maxFn'));
+      expect(output, isNull, reason: '泛型函数应被跳过');
     });
 
-    test('注册到 registerFunctions', () async {
+    test('泛型类 Point<T> 返回 null（跳过）', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNull, reason: '泛型类应被跳过');
+    });
+
+    test('泛型类型不注册到 registerClasses/registerFunctions', () async {
       final bindgenLocal = Bindgen();
       final projectRoot = findProjectRoot(Directory.current);
       final packageConfig = getPackageConfig(projectRoot);
@@ -192,10 +197,16 @@ void main() {
         className: 'min',
         overrideLibrary: 'dart:math',
       );
+      await bindgenLocal.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+      );
 
-      expect(bindgenLocal.registerFunctions, hasLength(1));
-      expect(bindgenLocal.registerFunctions.first.name, 'min');
-      expect(bindgenLocal.registerFunctions.first.uri, 'dart:math');
+      expect(bindgenLocal.registerFunctions, isEmpty,
+          reason: '泛型函数不应注册');
+      expect(bindgenLocal.registerClasses, isEmpty,
+          reason: '泛型类不应注册');
     });
   });
 
