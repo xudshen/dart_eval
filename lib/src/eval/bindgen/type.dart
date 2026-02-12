@@ -86,6 +86,8 @@ String? builtinTypeFrom(DartType type) {
     if (name == 'Future' || name == 'Stream') {
       return 'CoreTypes.$lowerCamelCaseName';
     }
+    // FutureOr is a special type without an AsyncTypes constant.
+    if (name == 'FutureOr') return null;
     return 'AsyncTypes.$lowerCamelCaseName';
   }
   if (uri == 'dart:collection') {
@@ -198,6 +200,15 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
   if (lib.isInSdk) {
     final dartUri = lib.uri.toString();
     final which = dartUri.substring(5);
+    // Only use dart_eval stdlib for URIs it actually provides.
+    // Other SDK libs (e.g. dart:ui from the Flutter engine) fall through
+    // to the bridge declarations path below.
+    const hasSdkStdlib = {
+      'core', 'async', 'collection', 'convert', 'io', 'math', 'typed_data',
+    };
+    if (!hasSdkStdlib.contains(which)) {
+      // Fall through — will be handled by bridgeDeclarations or wrapAlways()
+    } else {
     ctx.imports.add('package:dart_eval/stdlib/$which.dart');
     if (defaultCstr.contains(name)) {
       return '$unionStr\$$name($expr)';
@@ -218,16 +229,31 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     if (name == 'Future') {
       final generic = type as ParameterizedType;
       final arg = generic.typeArguments.first;
+      // Future<void> / Future<Null>: callback value is unusable, always
+      // return const $null().
+      if (arg is VoidType || arg.isDartCoreNull) {
+        return '$unionStr\$Future.wrap($expr.then((_) => const \$null()))';
+      }
       final inner = wrapVar(ctx, arg, 'e');
       // The Future value may be null at runtime (e.g. route pop without
       // result), even when the static type is non-nullable dynamic.
       // Guard with a null check so $Object(null) is never called.
-      final body = arg is DynamicType || arg is VoidType
+      final body = arg is DynamicType
           ? 'e == null ? const \$null() : $inner'
           : inner;
       return '$unionStr\$Future.wrap($expr.then((e) => $body))';
     }
+    // Types without dart_eval stdlib wrappers — fall through to
+    // wrapAlways() via null return.
+    const noStdlibWrapper = {'Type', 'FutureOr', 'Iterable', 'Iterator',
+        'MapEntry', 'Pattern', 'Match', 'RegExp', 'Symbol', 'StackTrace',
+        'Stopwatch', 'StringBuffer', 'StringSink', 'BidirectionalIterator',
+        'Comparable'};
+    if (noStdlibWrapper.contains(name)) {
+      return null;
+    }
     return '$unionStr\$$name.wrap($expr)';
+    } // end hasSdkStdlib else
   }
 
   final typeEl = type.element3!;
@@ -266,7 +292,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     if (bound is! DynamicType) {
       final b = wrapVar(ctx, bound, expr);
       if (b != null) {
-        return '$unionStr\$$b';
+        return '$unionStr$b';
       }
     }
   }

@@ -69,7 +69,7 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         return ${wrapVar(ctx, e.type.returnType, '_${e.name3}', metadata: e.metadata2.annotations)};
       ''').join('\n')}${methods0.map((e) => '''
       case '${e.name3}':
-        return __${resolveMethodOperator(e.name3!).name};
+        return __${resolveMethodOperator(e.displayName).name};
       ''').join('\n')}\n}';
 }
 

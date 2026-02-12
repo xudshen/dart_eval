@@ -79,6 +79,7 @@ final kOperatorNames = <String, OperatorMethod>{
   '==': BinaryOperator('==', 'operatorEq'),
   '~': UnaryOperator('~', 'operatorBitNot'),
   '-': BinaryOperator('-', 'operatorMinus'),
+  'unary-': UnaryOperator('-', 'operatorUnaryMinus'),
   '+': BinaryOperator('+', 'operatorPlus'),
   '/': BinaryOperator('/', 'operatorDiv'),
   '~/': BinaryOperator('~/', 'operatorIntDiv'),

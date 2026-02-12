@@ -124,6 +124,7 @@ class Bindgen implements BridgeDeclarationRegistry {
     required String overrideLibrary,
     bool isBridge = false,
     List<String> externMembers = const [],
+    String filePrefix = '',
   }) async {
     _contextCollection ??= AnalysisContextCollection(
       includedPaths: includedPaths,
@@ -157,12 +158,22 @@ class Bindgen implements BridgeDeclarationRegistry {
       return null;
     }
 
+    // Use the element's actual defining library URI for the type spec.
+    // For re-exported types (e.g. Container exported from
+    // package:flutter/widgets.dart but defined in
+    // package:flutter/src/widgets/container.dart), this ensures $spec
+    // uses the correct internal URI that the dart_eval runtime expects.
+    final actualUri = element.library2?.uri.toString() ?? overrideLibrary;
+
     final evalFilename = '${_toSnakeCase(className)}.eval.dart';
+    final registeredFile = filePrefix.isEmpty
+        ? evalFilename
+        : '$filePrefix/$evalFilename';
     final ctx = BindgenContext(evalFilename, overrideLibrary,
         all: true,
         bridgeDeclarations: _bridgeDeclarations,
         exportedLibMappings: _exportedLibMappings);
-    ctx.libOverrides[className] = overrideLibrary;
+    ctx.libOverrides[className] = actualUri;
     ctx.externMembers.addAll(externMembers);
     ctx.implicitSupers = false;
 
@@ -173,21 +184,21 @@ class Bindgen implements BridgeDeclarationRegistry {
             'Cannot bind sealed class $className as a bridge type.');
       }
       registerClasses.add((
-        file: evalFilename,
+        file: registeredFile,
         uri: overrideLibrary,
         name: '$className${isBridge ? '\$bridge' : ''}',
       ));
       code = _generateInstance(ctx, element, isBridge: isBridge);
     } else if (element is EnumElement2) {
       registerEnums.add((
-        file: evalFilename,
+        file: registeredFile,
         uri: overrideLibrary,
         name: className,
       ));
       code = _generateEnum(ctx, element);
     } else if (element is TopLevelFunctionElement) {
       registerFunctions.add((
-        file: evalFilename,
+        file: registeredFile,
         uri: overrideLibrary,
         name: className,
       ));

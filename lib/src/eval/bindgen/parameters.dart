@@ -54,6 +54,17 @@ String argumentAccessor(
     paramBuffer.write('(');
     if (type is FunctionType) {
       paramBuffer.write(parameterHeader(type.formalParameters));
+      // Import libraries for callback parameter types so raw Dart type
+      // names (e.g. TapMoveDetails) resolve in the generated file.
+      for (final ftParam in type.formalParameters) {
+        final ftEl = ftParam.type.element3;
+        if (ftEl != null) {
+          final ftLib = ftEl.library2;
+          if (ftLib != null) {
+            ctx.imports.add(ftLib.uri.toString());
+          }
+        }
+      }
     }
     paramBuffer.write(') {\n');
     if (type is FunctionType) {
@@ -97,7 +108,31 @@ String argumentAccessor(
     } else {
       paramBuffer.write('?.\$$accessor');
       if (param.hasDefaultValue) {
-        paramBuffer.write(' ?? ${param.defaultValueCode}');
+        var defaultCode = param.defaultValueCode!;
+        // Qualify unqualified static member references.
+        // `defaultValueCode` gives source-level code (e.g. `strokeAlignInside`)
+        // which only resolves inside the defining class. In our generated
+        // wrapper class, prefix with the class name.
+        if (!defaultCode.contains('.') && !_isLiteral(defaultCode)) {
+          final enclosing = param.enclosingElement2?.enclosingElement2;
+          if (enclosing is InterfaceElement2) {
+            final hasStatic = enclosing.fields2.any(
+                (f) => f.isStatic && f.name3 == defaultCode);
+            if (hasStatic) {
+              defaultCode = '${enclosing.name3}.$defaultCode';
+            }
+          }
+        }
+        paramBuffer.write(' ?? $defaultCode');
+        // Ensure the library defining the parameter's type is imported,
+        // so default values like `DragStartBehavior.start` resolve.
+        final typeEl = type.element3;
+        if (typeEl != null) {
+          final typeLib = typeEl.library2;
+          if (typeLib != null) {
+            ctx.imports.add(typeLib.uri.toString());
+          }
+        }
       }
     }
     if (needsCast) {
@@ -107,6 +142,20 @@ String argumentAccessor(
     }
   }
   return paramBuffer.toString();
+}
+
+/// Returns true if [code] looks like a Dart literal (number, bool, null,
+/// string, const expression, or collection literal).
+bool _isLiteral(String code) {
+  final c = code.trim();
+  if (c == 'true' || c == 'false' || c == 'null') return true;
+  if (c.startsWith("'") || c.startsWith('"')) return true;
+  if (c.startsWith('const ') || c.startsWith('[') || c.startsWith('{')) {
+    return true;
+  }
+  // Numeric literal (including hex like 0xFF000000)
+  if (RegExp(r'^-?[0-9]').hasMatch(c)) return true;
+  return false;
 }
 
 List<String> argumentAccessors(

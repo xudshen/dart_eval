@@ -103,12 +103,23 @@ Future<BindResult> bind({
 
   // ── Config mode ──────────────────────────────────────────────────
   if (config != null) {
+    // Plugin output is at the top-level config output dir
+    final pluginOutputDir = config.output ?? outputDir ?? 'lib/_eval';
+    final pluginOutputPath = join(projectRoot.path, pluginOutputDir);
+
     for (final lib in config.libraries) {
-      // Output priority: library.output > config.output > outputDir > 'lib/_eval'
-      final libOutputDir =
-          lib.output ?? config.output ?? outputDir ?? 'lib/_eval';
-      final libOutputPath = join(projectRoot.path, libOutputDir, 'src');
+      // When library has its own output, use it directly (it already
+      // includes the desired subdirectory path like lib/_eval/src/widgets).
+      // Otherwise, append src/ to the default output dir.
+      final libOutputPath = lib.output != null
+          ? join(projectRoot.path, lib.output!)
+          : join(projectRoot.path, pluginOutputDir, 'src');
       Directory(libOutputPath).createSync(recursive: true);
+
+      // Compute file prefix for plugin imports (relative from plugin dir)
+      // e.g., "src" (default) or "src/widgets" (per-library)
+      final relFromPlugin = relative(libOutputPath, from: pluginOutputPath);
+      final filePrefix = relFromPlugin == '.' ? '' : relFromPlugin;
 
       for (final cls in lib.classes) {
         final output = await bindgen.parseFromConfig(
@@ -117,6 +128,7 @@ Future<BindResult> bind({
           overrideLibrary: lib.uri,
           isBridge: cls.bridge,
           externMembers: cls.extern,
+          filePrefix: filePrefix,
         );
         if (output != null) {
           _writeConfigOutput(
@@ -130,6 +142,7 @@ Future<BindResult> bind({
           libraryUri: lib.uri,
           className: enumName,
           overrideLibrary: lib.uri,
+          filePrefix: filePrefix,
         );
         if (output != null) {
           _writeConfigOutput(
@@ -143,6 +156,7 @@ Future<BindResult> bind({
           libraryUri: lib.uri,
           className: fnName,
           overrideLibrary: lib.uri,
+          filePrefix: filePrefix,
         );
         if (output != null) {
           _writeConfigOutput(
@@ -152,12 +166,6 @@ Future<BindResult> bind({
         }
       }
     }
-
-    // Config mode: generate plugin.dart in the first library's output dir
-    // (or the top-level config output dir)
-    final pluginOutputDir =
-        config.output ?? outputDir ?? 'lib/_eval';
-    final pluginOutputPath = join(projectRoot.path, pluginOutputDir);
 
     String? pluginPath;
     if (generatePlugin && boundFiles.isNotEmpty) {
@@ -360,6 +368,8 @@ ${[
 
 /// [EvalPlugin] for $packageName
 class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
+  const ${packageName.toPascalCase()}Plugin();
+
   @override
   String get identifier => 'package:${packageName.toLowerCase()}';
 
@@ -465,14 +475,16 @@ String _generatePluginFile({
   final pluginFilePath = join(outputBasePath, pluginFileName);
   Directory(dirname(pluginFilePath)).createSync(recursive: true);
 
-  // Generate imports from registered eval files
+  // Generate imports from registered eval files.
+  // The file field already contains the relative path from the plugin dir
+  // (e.g. "src/random.eval.dart" or "src/widgets/container.eval.dart").
   final importPaths = <String>{};
   for (final e in [
     ...bindgen.registerClasses,
     ...bindgen.registerEnums,
     ...bindgen.registerFunctions,
   ]) {
-    importPaths.add('src/${e.file}');
+    importPaths.add(e.file);
   }
 
   final pluginContent = '''
@@ -481,6 +493,8 @@ ${importPaths.map((p) => "import '$p';").join('\n')}
 
 /// [EvalPlugin] for $packageName
 class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
+  const ${packageName.toPascalCase()}Plugin();
+
   @override
   String get identifier => 'package:${packageName.toLowerCase()}';
 
