@@ -112,6 +112,191 @@ class Bindgen implements BridgeDeclarationRegistry {
     _exportedLibMappings[libraryUri] = exportUri;
   }
 
+  /// Generate binding code for a class/enum/function from an external library,
+  /// without requiring @Bind annotations.
+  ///
+  /// This is the config-driven counterpart of [parse]. Instead of scanning
+  /// source files for @Bind annotations, it resolves the element by name from
+  /// the library's export namespace and generates the binding directly.
+  Future<String?> parseFromConfig({
+    required String libraryUri,
+    required String className,
+    required String overrideLibrary,
+    bool isBridge = false,
+    List<String> externMembers = const [],
+  }) async {
+    _contextCollection ??= AnalysisContextCollection(
+      includedPaths: includedPaths,
+      resourceProvider: Bindgen.resourceProvider,
+    );
+
+    // Resolve the library and find the element by name
+    final context = _contextCollection!.contexts.first;
+    final session = context.currentSession;
+    final libResult = await session.getLibraryByUri(libraryUri);
+    if (libResult is! LibraryElementResult) {
+      print('Warning: Could not resolve library $libraryUri');
+      return null;
+    }
+    final libElement = libResult.element;
+    final element = libElement.exportNamespace.get2(className);
+    if (element == null) {
+      print('Warning: $className not found in $libraryUri');
+      return null;
+    }
+
+    final evalFilename = '${_toSnakeCase(className)}.eval.dart';
+    final ctx = BindgenContext(evalFilename, overrideLibrary,
+        all: true,
+        bridgeDeclarations: _bridgeDeclarations,
+        exportedLibMappings: _exportedLibMappings);
+    ctx.libOverrides[className] = overrideLibrary;
+    ctx.externMembers.addAll(externMembers);
+    ctx.implicitSupers = false;
+
+    String? code;
+    if (element is ClassElement2) {
+      if (isBridge && element.isSealed) {
+        throw CompileError(
+            'Cannot bind sealed class $className as a bridge type.');
+      }
+      registerClasses.add((
+        file: evalFilename,
+        uri: overrideLibrary,
+        name: '$className${isBridge ? '\$bridge' : ''}',
+      ));
+      code = _generateInstance(ctx, element, isBridge: isBridge);
+    } else if (element is EnumElement2) {
+      registerEnums.add((
+        file: evalFilename,
+        uri: overrideLibrary,
+        name: className,
+      ));
+      code = _generateEnum(ctx, element);
+    } else if (element is TopLevelFunctionElement) {
+      registerFunctions.add((
+        file: evalFilename,
+        uri: overrideLibrary,
+        name: className,
+      ));
+      code = _generateFunction(ctx, element);
+    }
+
+    if (code == null) return null;
+
+    // Assemble output with imports
+    final imports = ctx.imports
+        .whereNot((e) => e == overrideLibrary)
+        .map((e) => "import '$e';")
+        .join('\n');
+    return '$imports$code';
+  }
+
+  /// Generate instance (class) binding code, shared by parse() and
+  /// parseFromConfig().
+  String _generateInstance(
+      BindgenContext ctx, ClassElement2 element,
+      {required bool isBridge}) {
+    if (isBridge) {
+      return '''
+/// dart_eval bridge binding for [${element.name3}]
+class \$${element.name3}\$bridge extends ${element.name3} with \$Bridge<${element.name3}> {
+${bindForwardedConstructors(ctx, element)}
+/// Configure this class for use in a [Runtime]
+${bindConfigureForRuntime(ctx, element, isBridge: true)}
+/// Compile-time type specification of [\$${element.name3}\$bridge]
+${bindTypeSpec(ctx, element)}
+/// Compile-time type declaration of [\$${element.name3}\$bridge]
+${bindBridgeType(ctx, element)}
+/// Compile-time class declaration of [\$${element.name3}]
+${bindBridgeDeclaration(ctx, element, isBridge: true)}
+${$constructors(ctx, element, isBridge: true)}
+${$staticMethods(ctx, element)}
+${$staticGetters(ctx, element)}
+${$staticSetters(ctx, element)}
+${$bridgeGet(ctx, element)}
+${$bridgeSet(ctx, element)}
+${bindDecoratorProperties(ctx, element)}
+${bindDecoratorMethods(ctx, element)}
+}
+''';
+    }
+
+    return '''
+/// dart_eval wrapper binding for [${element.name3}]
+class \$${element.name3} implements \$Instance {
+/// Configure this class for use in a [Runtime]
+${bindConfigureForRuntime(ctx, element)}
+/// Compile-time type specification of [\$${element.name3}]
+${bindTypeSpec(ctx, element)}
+/// Compile-time type declaration of [\$${element.name3}]
+${bindBridgeType(ctx, element)}
+/// Compile-time class declaration of [\$${element.name3}]
+${bindBridgeDeclaration(ctx, element)}
+${$constructors(ctx, element)}
+${$staticMethods(ctx, element)}
+${$staticGetters(ctx, element)}
+${$staticSetters(ctx, element)}
+${$wrap(ctx, element)}
+${$getRuntimeType(element)}
+${$getProperty(ctx, element)}
+${$methods(ctx, element)}
+${$setProperty(ctx, element)}
+}
+''';
+  }
+
+  /// Generate enum binding code, shared by parse() and parseFromConfig().
+  String _generateEnum(BindgenContext ctx, EnumElement2 element) {
+    return '''
+/// dart_eval enum wrapper binding for [${element.name3}]
+class \$${element.name3} implements \$Instance {
+  /// Configure this enum for use in a [Runtime]
+  ${bindConfigureEnumForRuntime(ctx, element)}
+  /// Compile-time type specification of [\$${element.name3}]
+  ${bindTypeSpec(ctx, element)}
+  /// Compile-time type declaration of [\$${element.name3}]
+  ${bindBridgeType(ctx, element)}
+  /// Compile-time class declaration of [\$${element.name3}]
+  ${bindBridgeDeclaration(ctx, element)}
+  ${$enumValues(ctx, element)}
+  ${$staticMethods(ctx, element)}
+  ${$staticGetters(ctx, element)}
+  ${$staticSetters(ctx, element)}
+  ${$wrap(ctx, element)}
+  ${$getRuntimeType(element)}
+  ${$getProperty(ctx, element)}
+  ${$methods(ctx, element)}
+  ${$setProperty(ctx, element)}
+}
+''';
+  }
+
+  /// Generate top-level function binding code, shared by parse() and
+  /// parseFromConfig().
+  String _generateFunction(
+      BindgenContext ctx, TopLevelFunctionElement element) {
+    return '''
+/// dart_eval function wrapper binding for [${element.name3}]
+class \$${element.name3}Fn implements EvalCallable {
+  const \$${element.name3}Fn();
+
+  ${bindConfigureFunctionForRuntime(ctx, element)}
+  ${bindFunctionDeclaration(ctx, element)}
+  ${$function(ctx, element)}
+}
+''';
+  }
+
+  static String _toSnakeCase(String input) {
+    return input
+        .replaceAllMapped(
+            RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]}_${m[2]}')
+        .replaceAllMapped(
+            RegExp(r'([A-Z]+)([A-Z][a-z])'), (m) => '${m[1]}_${m[2]}')
+        .toLowerCase();
+  }
+
   Future<String?> parse(io.File src, String filename, String uri, bool all,
       {bool separateOutputDir = false}) async {
     final resourceProvider = PhysicalResourceProvider.INSTANCE;
@@ -285,33 +470,11 @@ class Bindgen implements BridgeDeclarationRegistry {
       name: '${element.name3!}${isBridge ? '\$bridge' : ''}',
     ));
 
-    if (isBridge) {
-      String code = '''
-/// dart_eval bridge binding for [${element.name3}]
-class \$${element.name3}\$bridge extends ${element.name3} with \$Bridge<${element.name3}> {
-${bindForwardedConstructors(ctx, element)}
-/// Configure this class for use in a [Runtime]
-${bindConfigureForRuntime(ctx, element, isBridge: true)}
-/// Compile-time type specification of [\$${element.name3}\$bridge]
-${bindTypeSpec(ctx, element)}
-/// Compile-time type declaration of [\$${element.name3}\$bridge]
-${bindBridgeType(ctx, element)}
-/// Compile-time class declaration of [\$${element.name3}]
-${bindBridgeDeclaration(ctx, element, isBridge: true)}
-${$constructors(ctx, element, isBridge: true)}
-${$staticMethods(ctx, element)}
-${$staticGetters(ctx, element)}
-${$staticSetters(ctx, element)}
-${$bridgeGet(ctx, element)}
-${$bridgeSet(ctx, element)}
-${bindDecoratorProperties(ctx, element)}
-${bindDecoratorMethods(ctx, element)}
-}
-''';
+    String code = _generateInstance(ctx, element, isBridge: isBridge);
 
-      if (alsoWrap) {
-        // Add a rudimentary wrapper, because you cannot wrap things in a bridge.
-        code += '''
+    if (isBridge && alsoWrap) {
+      // Add a rudimentary wrapper, because you cannot wrap things in a bridge.
+      code += '''
 /// dart_eval wrapper binding for [${element.name3}]
 class \$${element.name3} implements \$Instance {
 /// Compile-time type specification of [\$${element.name3}]
@@ -325,33 +488,9 @@ ${$methods(ctx, element)}
 ${$setProperty(ctx, element)}
 }
 ''';
-      }
-
-      return code;
     }
 
-    return '''
-/// dart_eval wrapper binding for [${element.name3}]
-class \$${element.name3} implements \$Instance {
-/// Configure this class for use in a [Runtime]
-${bindConfigureForRuntime(ctx, element)}
-/// Compile-time type specification of [\$${element.name3}]
-${bindTypeSpec(ctx, element)}
-/// Compile-time type declaration of [\$${element.name3}]
-${bindBridgeType(ctx, element)}
-/// Compile-time class declaration of [\$${element.name3}]
-${bindBridgeDeclaration(ctx, element)}
-${$constructors(ctx, element)}
-${$staticMethods(ctx, element)}
-${$staticGetters(ctx, element)}
-${$staticSetters(ctx, element)}
-${$wrap(ctx, element)}
-${$getRuntimeType(element)}
-${$getProperty(ctx, element)}
-${$methods(ctx, element)}
-${$setProperty(ctx, element)}
-}
-''';
+    return code;
   }
 
   String? _$enum(BindgenContext ctx, EnumElement2 element) {
@@ -369,28 +508,7 @@ ${$setProperty(ctx, element)}
       name: element.name3!,
     ));
 
-    return '''
-/// dart_eval enum wrapper binding for [${element.name3}]
-class \$${element.name3} implements \$Instance {
-  /// Configure this enum for use in a [Runtime]
-  ${bindConfigureEnumForRuntime(ctx, element)}
-  /// Compile-time type specification of [\$${element.name3}]
-  ${bindTypeSpec(ctx, element)}
-  /// Compile-time type declaration of [\$${element.name3}]
-  ${bindBridgeType(ctx, element)}
-  /// Compile-time class declaration of [\$${element.name3}]
-  ${bindBridgeDeclaration(ctx, element)}
-  ${$enumValues(ctx, element)}
-  ${$staticMethods(ctx, element)}
-  ${$staticGetters(ctx, element)}
-  ${$staticSetters(ctx, element)}
-  ${$wrap(ctx, element)}
-  ${$getRuntimeType(element)}
-  ${$getProperty(ctx, element)}
-  ${$methods(ctx, element)}
-  ${$setProperty(ctx, element)}
-}
-''';
+    return _generateEnum(ctx, element);
   }
 
   String? _$function(BindgenContext ctx, ExecutableElement2 element) {
@@ -406,16 +524,7 @@ class \$${element.name3} implements \$Instance {
       name: element.name3!,
     ));
 
-    return '''
-/// dart_eval function wrapper binding for [${element.name3}]
-class \$${element.name3}Fn implements EvalCallable {
-  const \$${element.name3}Fn();
-
-  ${bindConfigureFunctionForRuntime(ctx, element)}
-  ${bindFunctionDeclaration(ctx, element)}
-  ${$function(ctx, element)}
-}
-''';
+    return _generateFunction(ctx, element);
   }
 
   String $superclassWrapper(BindgenContext ctx, InterfaceElement2 element) {
