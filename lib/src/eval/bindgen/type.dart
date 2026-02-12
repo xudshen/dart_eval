@@ -337,7 +337,7 @@ String wrapFunctionType(BindgenContext ctx, FunctionType type, String expr) {
 String castTypeArgsSuffix(DartType type) {
   if (type is ParameterizedType) {
     final args = type.typeArguments;
-    if (args.isNotEmpty && args.every((a) => a is! DynamicType)) {
+    if (args.isNotEmpty && !args.every((a) => a is DynamicType)) {
       return '<${args.map((a) => a.getDisplayString()).join(', ')}>';
     }
   }

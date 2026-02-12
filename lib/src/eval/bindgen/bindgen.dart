@@ -360,6 +360,9 @@ ${$setProperty(ctx, element)}
       return null;
     }
 
+    // Clear stale extern members from a previously processed class/enum
+    ctx.externMembers.clear();
+
     registerEnums.add((
       file: ctx.filename,
       uri: ctx.libOverrides[element.name3!] ?? ctx.uri,
