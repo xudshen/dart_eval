@@ -218,7 +218,14 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     if (name == 'Future') {
       final generic = type as ParameterizedType;
       final arg = generic.typeArguments.first;
-      return '$unionStr\$Future.wrap($expr.then((e) => ${wrapVar(ctx, arg, 'e')}))';
+      final inner = wrapVar(ctx, arg, 'e');
+      // The Future value may be null at runtime (e.g. route pop without
+      // result), even when the static type is non-nullable dynamic.
+      // Guard with a null check so $Object(null) is never called.
+      final body = arg is DynamicType || arg is VoidType
+          ? 'e == null ? const \$null() : $inner'
+          : inner;
+      return '$unionStr\$Future.wrap($expr.then((e) => $body))';
     }
     return '$unionStr\$$name.wrap($expr)';
   }
