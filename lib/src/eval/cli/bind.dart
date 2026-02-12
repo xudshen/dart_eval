@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:change_case/change_case.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bindgen/bindgen.dart';
+import 'package:dart_eval/src/eval/cli/bindgen_config.dart';
 import 'package:dart_eval/src/eval/cli/bindings.dart';
 import 'package:dart_eval/src/eval/cli/utils.dart';
 import 'package:dart_style/dart_style.dart';
@@ -53,6 +54,7 @@ Future<BindResult> bind({
   bool generatePlugin = true,
   List<String> bindingPaths = const [],
   bool verbose = false,
+  BindgenConfig? config,
 }) async {
   if (verbose) print('Loading files...');
 
@@ -99,6 +101,90 @@ Future<BindResult> bind({
   var singleResult = '';
   final boundFiles = <String>[];
 
+  // ── Config mode ──────────────────────────────────────────────────
+  if (config != null) {
+    for (final lib in config.libraries) {
+      // Output priority: library.output > config.output > outputDir > 'lib/_eval'
+      final libOutputDir =
+          lib.output ?? config.output ?? outputDir ?? 'lib/_eval';
+      final libOutputPath = join(projectRoot.path, libOutputDir, 'src');
+      Directory(libOutputPath).createSync(recursive: true);
+
+      for (final cls in lib.classes) {
+        final output = await bindgen.parseFromConfig(
+          libraryUri: lib.uri,
+          className: cls.name,
+          overrideLibrary: lib.uri,
+          isBridge: cls.bridge,
+          externMembers: cls.extern,
+        );
+        if (output != null) {
+          _writeConfigOutput(
+              output, cls.name, libOutputPath, formatter, lib.uri);
+          boundFiles.add('${cls.name} (${lib.uri})');
+          if (verbose) print('Bound ${cls.name} from ${lib.uri}');
+        }
+      }
+      for (final enumName in lib.enums) {
+        final output = await bindgen.parseFromConfig(
+          libraryUri: lib.uri,
+          className: enumName,
+          overrideLibrary: lib.uri,
+        );
+        if (output != null) {
+          _writeConfigOutput(
+              output, enumName, libOutputPath, formatter, lib.uri);
+          boundFiles.add('$enumName (${lib.uri})');
+          if (verbose) print('Bound $enumName from ${lib.uri}');
+        }
+      }
+      for (final fnName in lib.functions) {
+        final output = await bindgen.parseFromConfig(
+          libraryUri: lib.uri,
+          className: fnName,
+          overrideLibrary: lib.uri,
+        );
+        if (output != null) {
+          _writeConfigOutput(
+              output, fnName, libOutputPath, formatter, lib.uri);
+          boundFiles.add('$fnName (${lib.uri})');
+          if (verbose) print('Bound $fnName from ${lib.uri}');
+        }
+      }
+    }
+
+    // Config mode: generate plugin.dart in the first library's output dir
+    // (or the top-level config output dir)
+    final pluginOutputDir =
+        config.output ?? outputDir ?? 'lib/_eval';
+    final pluginOutputPath = join(projectRoot.path, pluginOutputDir);
+
+    String? pluginPath;
+    if (generatePlugin && boundFiles.isNotEmpty) {
+      pluginPath = _generatePluginFile(
+        bindgen: bindgen,
+        packageName: packageName,
+        outputBasePath: pluginOutputPath,
+        formatter: formatter,
+        verbose: verbose,
+        mappingLines: '',
+      );
+    }
+
+    if (boundFiles.isEmpty && verbose) {
+      print('No types were bound from config.');
+    } else if (verbose) {
+      print('Created bindings for ${boundFiles.length} types.');
+    }
+
+    return BindResult(
+      boundFileCount: boundFiles.length,
+      boundFiles: boundFiles,
+      pluginPath: pluginPath,
+    );
+  }
+
+  // ── @Bind annotation mode (existing) ────────────────────────────
   final analyzePath = join(projectRoot.path, 'analysis_options.yaml');
   final excludes = readAnalyzerExcludes(File(analyzePath));
 
@@ -253,17 +339,17 @@ Future<BindResult> bind({
     }
   }
 
+  final mappingLines = generatedMappings.entries
+      .map((e) =>
+          "registry.addExportedLibraryMapping('${e.key}', '${e.value}');")
+      .join('\n    ');
+
   String? pluginPath;
   if (generatePlugin) {
     final pluginFilePath = join(outputBasePath, separateOutputDir
         ? 'plugin.dart'
         : 'eval_plugin.dart');
     Directory(dirname(pluginFilePath)).createSync(recursive: true);
-
-    final mappingLines = generatedMappings.entries
-        .map((e) =>
-            "registry.addExportedLibraryMapping('${e.key}', '${e.value}');")
-        .join('\n    ');
 
     final pluginContent = '''
 import 'package:dart_eval/dart_eval_bridge.dart';
@@ -343,4 +429,79 @@ List<Glob> readAnalyzerExcludes(File path) {
       .where((value) => value.startsWith('lib/'))
       .map((value) => Glob(value.replaceFirst(reLib, '')))
       .toList();
+}
+
+/// Write a config-mode generated binding file.
+void _writeConfigOutput(
+  String output,
+  String typeName,
+  String outputPath,
+  DartFormatter formatter,
+  String libraryUri,
+) {
+  final snakeName = typeName
+      .replaceAllMapped(
+          RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]}_${m[2]}')
+      .replaceAllMapped(
+          RegExp(r'([A-Z]+)([A-Z][a-z])'), (m) => '${m[1]}_${m[2]}')
+      .toLowerCase();
+  final filePath = join(outputPath, '$snakeName.eval.dart');
+  final ogImport = "import '$libraryUri';\n";
+  final result = formatter.format(defaultImports + ogImport + output,
+      uri: Uri.parse(filePath));
+  File(filePath).writeAsStringSync(result);
+}
+
+/// Generate plugin.dart file from registered bindings.
+String _generatePluginFile({
+  required Bindgen bindgen,
+  required String packageName,
+  required String outputBasePath,
+  required DartFormatter formatter,
+  required bool verbose,
+  required String mappingLines,
+  String pluginFileName = 'plugin.dart',
+}) {
+  final pluginFilePath = join(outputBasePath, pluginFileName);
+  Directory(dirname(pluginFilePath)).createSync(recursive: true);
+
+  // Generate imports from registered eval files
+  final importPaths = <String>{};
+  for (final e in [
+    ...bindgen.registerClasses,
+    ...bindgen.registerEnums,
+    ...bindgen.registerFunctions,
+  ]) {
+    importPaths.add('src/${e.file}');
+  }
+
+  final pluginContent = '''
+import 'package:dart_eval/dart_eval_bridge.dart';
+${importPaths.map((p) => "import '$p';").join('\n')}
+
+/// [EvalPlugin] for $packageName
+class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
+  @override
+  String get identifier => 'package:${packageName.toLowerCase()}';
+
+  @override
+  void configureForCompile(BridgeDeclarationRegistry registry) {
+    ${bindgen.registerClasses.map((e) => 'registry.defineBridgeClass(\$${e.name}.\$declaration);').join('\n')}
+    ${bindgen.registerEnums.map((e) => 'registry.defineBridgeEnum(\$${e.name}.\$declaration);').join('\n')}
+    ${bindgen.registerFunctions.map((e) => 'registry.defineBridgeTopLevelFunction(\$${e.name}Fn.\$declaration);').join('\n')}
+    $mappingLines
+  }
+
+  @override
+  void configureForRuntime(Runtime runtime) {
+    ${bindgen.registerClasses.map((e) => '\$${e.name}.configureForRuntime(runtime);').join('\n')}
+    ${bindgen.registerEnums.map((e) => '\$${e.name}.configureForRuntime(runtime);').join('\n')}
+    ${bindgen.registerFunctions.map((e) => '\$${e.name}Fn.configureForRuntime(runtime);').join('\n')}
+  }
+}
+''';
+  File(pluginFilePath).writeAsStringSync(formatter.format(pluginContent,
+      uri: Uri.parse('package:$packageName/$pluginFileName')));
+  if (verbose) print('Generated plugin file: $pluginFilePath');
+  return pluginFilePath;
 }
