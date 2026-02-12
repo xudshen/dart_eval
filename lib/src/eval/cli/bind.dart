@@ -59,17 +59,32 @@ Future<BindResult> bind({
   final projectRoot = findProjectRoot(Directory(projectPath));
   final bindgen = Bindgen();
 
-  // Load bindings
-  final effectiveBindingPaths = bindingPaths.isNotEmpty
-      ? bindingPaths
-      : defaultBindingPaths(projectRoot.path);
-  loadBindingsInto(bindgen, effectiveBindingPaths, verbose: verbose);
-
-  // Read pubspec
+  // Read pubspec & package config
   final packageConfig = getPackageConfig(projectRoot);
   final pubspecFile = File(join(projectRoot.path, 'pubspec.yaml'));
   final pubspec = Pubspec.parse(pubspecFile.readAsStringSync());
   final packageName = pubspec.name;
+
+  // Load bindings from explicit paths, project defaults, and dependencies
+  final effectiveBindingPaths = [
+    ...(bindingPaths.isNotEmpty
+        ? bindingPaths
+        : defaultBindingPaths(projectRoot.path)),
+  ];
+  // Auto-discover binding JSONs from resolved dependency packages
+  for (final package in packageConfig.packages) {
+    if (package.name == packageName) continue;
+    try {
+      final depPath = package.packageUriRoot.toFilePath();
+      final depBindingsDir = join(depPath, '_eval', 'bindings');
+      if (Directory(depBindingsDir).existsSync()) {
+        effectiveBindingPaths.add(depBindingsDir);
+      }
+    } catch (_) {
+      // packageUriRoot might not be a file URI (e.g. pub cache on Windows)
+    }
+  }
+  loadBindingsInto(bindgen, effectiveBindingPaths, verbose: verbose);
 
   final version = Version.parse(Platform.version.split(' ').first);
   final formatter = DartFormatter(languageVersion: version);
@@ -91,10 +106,30 @@ Future<BindResult> bind({
   final effectiveOutputDir = outputDir ?? 'lib';
   final outputBasePath = join(projectRoot.path, effectiveOutputDir);
 
-  // Prefix for cross-package eval imports (e.g. '_eval' for lib/_eval/)
-  final evalOutputPrefix = outputDir != null && outputDir != 'lib'
-      ? relative(outputDir, from: 'lib')
-      : '';
+  // Whether output dir differs from source dir (e.g. lib/_eval/ vs lib/)
+  final separateOutputDir = outputDir != null && outputDir != 'lib';
+
+  // Pre-register barrel mappings for the current package so that
+  // same-package type references resolve via exportedLibMappings
+  // during bindgen (the actual barrel files are written after the bind loop).
+  if (separateOutputDir) {
+    final prefix = relative(effectiveOutputDir, from: 'lib');
+    final libDir = Directory(join(projectRoot.path, 'lib'));
+    if (libDir.existsSync()) {
+      for (final entity in libDir.listSync()) {
+        if (entity is Directory && !basename(entity.path).startsWith('_')) {
+          final dirName = basename(entity.path);
+          final srcDirUri = 'package:$packageName/$dirName';
+          final barrelUri = 'package:${posix.joinAll([
+                packageName,
+                prefix,
+                '$dirName.dart',
+              ])}';
+          bindgen.addExportedLibraryMapping(srcDirUri, barrelUri);
+        }
+      }
+    }
+  }
 
   Future<void> bindLoop(String pkg, Directory dir, String root) async {
     if (!dir.existsSync()) return;
@@ -107,7 +142,7 @@ Future<BindResult> bind({
         if (excludes.any((e) => e.matches(p))) continue;
         final uri = 'package:${posix.join(packageName, p)}';
         final output = await bindgen.parse(file, filename, uri, all,
-            evalOutputPrefix: evalOutputPrefix);
+            separateOutputDir: separateOutputDir);
         if (output != null) {
           if (verbose) print('Bound ${file.path}');
           boundFiles.add(file.path);
@@ -160,12 +195,75 @@ Future<BindResult> bind({
     File(outPath).writeAsStringSync(result);
   }
 
+  // Generate barrel files and compute exported library mappings
+  final generatedMappings = <String, String>{};
+  if (separateOutputDir && boundFiles.isNotEmpty) {
+    final prefix = relative(effectiveOutputDir, from: 'lib');
+
+    // Group registered types by source directory URI
+    final allRegistered = [
+      ...bindgen.registerClasses,
+      ...bindgen.registerEnums,
+      ...bindgen.registerFunctions,
+    ];
+
+    final dirToEvalFiles = <String, Set<String>>{};
+    for (final reg in allRegistered) {
+      final srcUri = Uri.parse(reg.uri);
+      final srcDirUri = '${srcUri.scheme}:${posix.dirname(srcUri.path)}';
+      // Compute eval file path relative to output base
+      // e.g., "src/bundle_context.dart" → "src/bundle_context.eval.dart"
+      final relFromPkg =
+          srcUri.path.substring(srcUri.path.indexOf('/') + 1);
+      final evalRel = relFromPkg.replaceAll('.dart', '.eval.dart');
+      dirToEvalFiles.putIfAbsent(srcDirUri, () => {}).add(evalRel);
+    }
+
+    for (final entry in dirToEvalFiles.entries) {
+      final srcDirUri = entry.key;
+      final evalFiles = entry.value;
+
+      // Barrel file named after source dir segment
+      // e.g., source dir "src" → barrel "_eval/src.dart"
+      final srcDirParsed = Uri.parse(srcDirUri);
+      final dirRelToPkg = srcDirParsed.path
+          .substring(srcDirParsed.path.indexOf('/') + 1);
+      final barrelFileName = '$dirRelToPkg.dart';
+      final barrelFilePath = join(outputBasePath, barrelFileName);
+
+      // Barrel URI: package:foo/_eval/src.dart
+      final barrelUri = 'package:${posix.joinAll([
+            packageName,
+            prefix,
+            barrelFileName,
+          ])}';
+
+      // Write barrel file
+      final exports =
+          evalFiles.map((f) => "export '$f';").join('\n');
+      Directory(dirname(barrelFilePath)).createSync(recursive: true);
+      File(barrelFilePath).writeAsStringSync(
+          formatter.format(exports, uri: Uri.parse(barrelUri)));
+
+      generatedMappings[srcDirUri] = barrelUri;
+    }
+    if (verbose && generatedMappings.isNotEmpty) {
+      print('Generated ${generatedMappings.length} barrel file(s) '
+          'for exported library mappings.');
+    }
+  }
+
   String? pluginPath;
   if (generatePlugin) {
-    final pluginFilePath = join(outputBasePath, outputDir != null && outputDir != 'lib'
+    final pluginFilePath = join(outputBasePath, separateOutputDir
         ? 'plugin.dart'
         : 'eval_plugin.dart');
     Directory(dirname(pluginFilePath)).createSync(recursive: true);
+
+    final mappingLines = generatedMappings.entries
+        .map((e) =>
+            "registry.addExportedLibraryMapping('${e.key}', '${e.value}');")
+        .join('\n    ');
 
     final pluginContent = '''
 import 'package:dart_eval/dart_eval_bridge.dart';
@@ -184,6 +282,7 @@ class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
     ${bindgen.registerClasses.map((e) => 'registry.defineBridgeClass(\$${e.name}.\$declaration);').join('\n')}
     ${bindgen.registerEnums.map((e) => 'registry.defineBridgeEnum(\$${e.name}.\$declaration);').join('\n')}
     ${bindgen.registerFunctions.map((e) => 'registry.defineBridgeTopLevelFunction(\$${e.name}Fn.\$declaration);').join('\n')}
+    $mappingLines
   }
 
   @override

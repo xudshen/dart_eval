@@ -113,7 +113,7 @@ class Bindgen implements BridgeDeclarationRegistry {
   }
 
   Future<String?> parse(io.File src, String filename, String uri, bool all,
-      {String evalOutputPrefix = ''}) async {
+      {bool separateOutputDir = false}) async {
     final resourceProvider = PhysicalResourceProvider.INSTANCE;
     if (_contextCollection == null) {
       _contextCollection = AnalysisContextCollection(
@@ -130,8 +130,7 @@ class Bindgen implements BridgeDeclarationRegistry {
     final ctx = BindgenContext(filename, uri,
         all: all,
         bridgeDeclarations: _bridgeDeclarations,
-        exportedLibMappings: _exportedLibMappings,
-        evalOutputPrefix: evalOutputPrefix);
+        exportedLibMappings: _exportedLibMappings);
 
     if (analysisResult is ResolvedUnitResult) {
       // Access the resolved unit and analyze it
@@ -154,7 +153,7 @@ class Bindgen implements BridgeDeclarationRegistry {
             }
             // When output dir differs from source dir, relative imports
             // would break. Resolve them to absolute package URIs.
-            if (evalOutputPrefix.isNotEmpty &&
+            if (separateOutputDir &&
                 !importUri.startsWith('package:') &&
                 !importUri.startsWith('dart:')) {
               importUri = Uri.parse(uri).resolve(importUri).toString();

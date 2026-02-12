@@ -16,14 +16,8 @@ class BindgenContext {
   /// These get compile-time declarations but no runtime binding.
   final Set<String> externMembers = {};
 
-  /// Path prefix for .eval.dart output relative to lib/ (e.g. '_eval').
-  /// When non-empty, cross-package eval imports include this prefix:
-  /// `package:foo/src/bar.dart` → `package:foo/_eval/src/bar.eval.dart`
-  final String evalOutputPrefix;
-
   BindgenContext(this.filename, this.uri,
       {required this.all,
       required this.bridgeDeclarations,
-      required this.exportedLibMappings,
-      this.evalOutputPrefix = ''});
+      required this.exportedLibMappings});
 }

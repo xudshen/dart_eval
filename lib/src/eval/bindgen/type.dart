@@ -226,12 +226,13 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
   final typeEl = type.element3!;
   if (typeEl is InterfaceElement2) {
     final uri = typeEl.library2.uri.toString();
-    final hasAnno = typeEl.metadata2.annotations
-        .any((e) => e.element2?.displayName == 'Bind');
-    if (hasAnno) {
-      ctx.imports.add(_evalImportUri(uri, ctx.evalOutputPrefix));
-      return '$unionStr\$$name.wrap($expr)';
-    } else if (ctx.bridgeDeclarations.containsKey(uri)) {
+    // Gate: type is known to have bindings, either from loaded JSON
+    // (bridgeDeclarations) or from @Bind annotation (analyzer).
+    final hasBridgeDecl = ctx.bridgeDeclarations.containsKey(uri);
+    final hasBindAnno = !hasBridgeDecl &&
+        typeEl.metadata2.annotations
+            .any((e) => e.element2?.displayName == 'Bind');
+    if (hasBridgeDecl || hasBindAnno) {
       final parsedUri = Uri.parse(uri);
 
       String current = parsedUri.path;
@@ -343,18 +344,3 @@ String castTypeArgsSuffix(DartType type) {
   return '';
 }
 
-/// Convert a source library URI to its .eval.dart import URI, inserting
-/// [prefix] after the package name when non-empty.
-///
-/// Example with prefix `_eval`:
-///   `package:fab_core/src/bundle_context.dart`
-///   → `package:fab_core/_eval/src/bundle_context.eval.dart`
-String _evalImportUri(String uri, String prefix) {
-  final evalUri = uri.replaceAll('.dart', '.eval.dart');
-  if (prefix.isEmpty) return evalUri;
-  final firstSlash = evalUri.indexOf('/');
-  if (firstSlash == -1) return evalUri;
-  return '${evalUri.substring(0, firstSlash + 1)}'
-      '$prefix/'
-      '${evalUri.substring(firstSlash + 1)}';
-}
