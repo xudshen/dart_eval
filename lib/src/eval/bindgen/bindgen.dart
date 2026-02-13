@@ -123,6 +123,7 @@ class Bindgen implements BridgeDeclarationRegistry {
     required String className,
     required String overrideLibrary,
     bool isBridge = false,
+    bool alsoWrap = false,
     List<String> externMembers = const [],
     String filePrefix = '',
   }) async {
@@ -175,7 +176,7 @@ class Bindgen implements BridgeDeclarationRegistry {
         exportedLibMappings: _exportedLibMappings);
     ctx.libOverrides[className] = actualUri;
     ctx.externMembers.addAll(externMembers);
-    ctx.implicitSupers = false;
+    ctx.implicitSupers = isBridge;
 
     String? code;
     if (element is ClassElement2) {
@@ -189,6 +190,23 @@ class Bindgen implements BridgeDeclarationRegistry {
         name: '$className${isBridge ? '\$bridge' : ''}',
       ));
       code = _generateInstance(ctx, element, isBridge: isBridge);
+      if (isBridge && alsoWrap) {
+        // Add a companion wrapper so native instances can be wrapped for eval.
+        code += '''
+/// dart_eval wrapper binding for [${element.name3}]
+class \$${element.name3} implements \$Instance {
+/// Compile-time type specification of [\$${element.name3}]
+${bindTypeSpec(ctx, element)}
+/// Compile-time type declaration of [\$${element.name3}]
+${bindBridgeType(ctx, element)}
+${$wrap(ctx, element)}
+${$getRuntimeType(element)}
+${$getProperty(ctx, element)}
+${$methods(ctx, element)}
+${$setProperty(ctx, element)}
+}
+''';
+      }
     } else if (element is EnumElement2) {
       registerEnums.add((
         file: registeredFile,

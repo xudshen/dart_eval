@@ -67,11 +67,16 @@ class LibraryConfig {
 class ClassEntry {
   final String name;
   final bool bridge;
+
+  /// When true and [bridge] is also true, generate a companion wrapper class
+  /// alongside the bridge class (so native instances can be wrapped for eval).
+  final bool wrap;
   final List<String> extern;
 
   ClassEntry({
     required this.name,
     this.bridge = false,
+    this.wrap = false,
     this.extern = const [],
   });
 
@@ -83,6 +88,7 @@ class ClassEntry {
     return ClassEntry(
       name: map['name'] as String,
       bridge: map['bridge'] as bool? ?? false,
+      wrap: map['wrap'] as bool? ?? false,
       extern: (map['extern'] as YamlList?)?.cast<String>().toList() ?? [],
     );
   }

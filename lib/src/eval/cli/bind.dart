@@ -17,6 +17,9 @@ const defaultImports = '''
 // ignore_for_file: always_specify_types, avoid_redundant_argument_values
 // ignore_for_file: sort_constructors_first
 // ignore_for_file: no_leading_underscores_for_local_identifiers
+// ignore_for_file: must_call_super
+// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: unnecessary_null_comparison
 
 import 'package:dart_eval/dart_eval.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
@@ -127,6 +130,7 @@ Future<BindResult> bind({
           className: cls.name,
           overrideLibrary: lib.uri,
           isBridge: cls.bridge,
+          alsoWrap: cls.wrap,
           externMembers: cls.extern,
           filePrefix: filePrefix,
         );
