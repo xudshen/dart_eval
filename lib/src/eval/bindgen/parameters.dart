@@ -137,6 +137,17 @@ String argumentAccessor(
             }
           }
         }
+        // If the default value references a private member, skip this
+        // parameter entirely — the Dart constructor will use its own default.
+        // Private members are inaccessible from the generated wrapper file.
+        if (_isPrivateDefault(defaultCode)) {
+          return '';
+        }
+        // If default references a class not importable in the generated file
+        // (e.g. CupertinoColors.systemBlue for a Color param), skip it.
+        if (_isUnresolvableDefault(defaultCode, type)) {
+          return '';
+        }
         paramBuffer.write(' ?? $defaultCode');
         // Ensure the library defining the parameter's type is imported,
         // so default values like `DragStartBehavior.start` resolve.
@@ -152,10 +163,50 @@ String argumentAccessor(
     if (needsCast) {
       final q = (param.isRequired ? '' : '?');
       paramBuffer.write(' as ${type.element3!.name3}$q');
-      paramBuffer.write(')$q.cast${castTypeArgsSuffix(type)}()');
+      paramBuffer.write(')$q.cast${castTypeArgsSuffix(ctx, type)}()');
     }
   }
   return paramBuffer.toString();
+}
+
+/// Returns true if [code] references a private Dart member that would be
+/// inaccessible from a generated wrapper file.
+///
+/// Detects top-level privates (e.g. `_snackBarDisplayDuration`) and qualified
+/// private members (e.g. `Tolerance._epsilonDefault`).
+bool _isPrivateDefault(String code) {
+  if (code.startsWith('_')) return true;
+  if (code.contains('._')) return true;
+  return false;
+}
+
+/// Returns true if a `ClassName.member` default value references a class
+/// that isn't importable from the parameter type's library.
+///
+/// For example, `CupertinoColors.systemBlue` as default for a `Color`
+/// parameter: `CupertinoColors` isn't defined in `dart:ui` (Color's library),
+/// so it can't be resolved in the generated wrapper file.
+bool _isUnresolvableDefault(String code, DartType type) {
+  var cleaned = code;
+  if (cleaned.startsWith('const ')) cleaned = cleaned.substring(6);
+  final dotIdx = cleaned.indexOf('.');
+  if (dotIdx <= 0) return false;
+  final className = cleaned.substring(0, dotIdx);
+  if (className.isEmpty ||
+      className[0] != className[0].toUpperCase() ||
+      _isLiteral(className)) {
+    return false;
+  }
+  // If className matches the parameter type → self-reference, OK
+  final typeName = type.element3?.name3;
+  if (className == typeName) return false;
+  // Check if className is exported by the parameter type's library
+  final typeLib = type.element3?.library2;
+  if (typeLib != null) {
+    final classEl = typeLib.exportNamespace.get2(className);
+    if (classEl != null) return false;
+  }
+  return true;
 }
 
 /// Returns true if [code] looks like a Dart literal (number, bool, null,
@@ -179,5 +230,6 @@ List<String> argumentAccessors(
   return params
       .mapIndexed((i, p) => argumentAccessor(ctx, i, p,
           paramMapping: paramMapping, isBridgeMethod: isBridgeMethod))
+      .where((s) => s.isNotEmpty)
       .toList();
 }

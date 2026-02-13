@@ -221,6 +221,15 @@ Future<BindResult> bind({
         final currentBatch = allDeps.toList();
         allDeps = <TypeDependency>{};
 
+        // Deduplicate by name — when multiple library URIs expose the
+        // same type name (e.g. StrutStyle from dart:ui AND
+        // package:flutter/src/painting/strut_style.dart), keep only the
+        // first to avoid generating $Name collisions.
+        {
+          final seen = <String>{};
+          currentBatch.removeWhere((dep) => !seen.add(dep.name));
+        }
+
         // Pre-register ALL deps in this batch before generating any,
         // so they can reference each other during code generation.
         for (final dep in currentBatch) {
@@ -272,6 +281,12 @@ Future<BindResult> bind({
 
         // Generate bindings for all deps in this batch
         for (final dep in currentBatch) {
+          // Skip if a type with this name was already generated in a
+          // previous batch (prevents $Name collisions from types that
+          // exist in multiple libraries, e.g. StrutStyle in dart:ui AND
+          // package:flutter/painting).
+          if (knownTypes.contains(dep.name)) continue;
+
           // Determine output directory: place auto-resolved types alongside
           // config types from the same source directory so they're included
           // in the correct barrel file.

@@ -58,7 +58,7 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
     final q =
         returnType.nullabilitySuffix == NullabilitySuffix.question ? '?' : '';
     final castSuffix = needsCast
-        ? 'as ${returnType.element3!.name3}$q)$q.cast${castTypeArgsSuffix(returnType)}()'
+        ? 'as ${returnType.element3!.name3}$q)$q.cast${castTypeArgsSuffix(ctx, returnType)}()'
         : '';
 
     return '''
@@ -119,7 +119,13 @@ String parameterHeader(List<FormalParameterElement> params,
         if (forConstructor) {
           paramBuffer.write('super.');
         } else {
-          paramBuffer.write('${param.type.getDisplayString()} ');
+          // Replace type parameters (e.g. T) with their bound
+          // (e.g. Constraints) since type parameters don't exist
+          // in the generated wrapper class.
+          final displayType = param.type is TypeParameterType
+              ? (param.type as TypeParameterType).bound.getDisplayString()
+              : param.type.getDisplayString();
+          paramBuffer.write('$displayType ');
         }
     }
     paramBuffer.write(

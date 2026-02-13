@@ -135,6 +135,14 @@ class Bindgen implements BridgeDeclarationRegistry {
     final session = _contextCollection!.contexts.first.currentSession;
     final pluginOutputPath = join(projectRootPath, pluginOutputDir);
 
+    // Collect per-library reexport info for a second pass.
+    // Two-pass approach: register each library's OWN type mappings first
+    // (pass 1), then reexport mappings (pass 2). This ensures a dedicated
+    // library's barrel always wins over another library's reexport of the
+    // same source directory (putIfAbsent keeps the first registration).
+    final reexportEntries = <({String barrelUri, List<String> reexports})>[];
+
+    // Pass 1: Register bridge declarations and own-type exportedLibMappings
     for (final lib in libraries) {
       // Resolve the library
       final libResult = await session.getLibraryByUri(lib.uri);
@@ -207,7 +215,21 @@ class Bindgen implements BridgeDeclarationRegistry {
           }
         }
 
-        // Register exported lib mapping (so wrapType can find the import path)
+        // Register per-type mapping so wrapType() resolves the correct
+        // barrel when a type's binding is in a different barrel than its
+        // source library (e.g. TextRange from dart:ui in widgets config).
+        _exportedLibMappings['$actualUri#$typeName'] = barrelUri;
+
+        // Register file-level mapping so wrapType() resolves the correct
+        // barrel even when two config libraries share a source directory
+        // (e.g. widgets/KeyEvent and services/PhysicalKeyboardKey both
+        // live under package:flutter/src/services/).
+        // Use putIfAbsent: first config to claim a URI wins. This prevents
+        // bare library URIs like 'dart:ui' from being overwritten by later
+        // configs that also process types from the same library.
+        _exportedLibMappings.putIfAbsent(actualUri, () => barrelUri);
+        // Also register directory-level mapping as fallback for types not
+        // explicitly in the config (e.g. auto-resolved dependencies).
         final parsedUri = Uri.parse(actualUri);
         final srcDirUri = parsedUri.path.contains('/')
             ? '${parsedUri.scheme}:${posix.dirname(parsedUri.path)}'
@@ -215,13 +237,24 @@ class Bindgen implements BridgeDeclarationRegistry {
         _exportedLibMappings.putIfAbsent(srcDirUri, () => barrelUri);
       }
 
-      // Also register reexport mappings
-      for (final reUri in lib.reexports) {
+      // Collect reexports for pass 2
+      if (lib.reexports.isNotEmpty) {
+        reexportEntries.add((
+          barrelUri: barrelUri,
+          reexports: lib.reexports,
+        ));
+      }
+    }
+
+    // Pass 2: Register reexport mappings (only fills gaps — dedicated
+    // library mappings from pass 1 are already registered and win)
+    for (final entry in reexportEntries) {
+      for (final reUri in entry.reexports) {
         final reParsed = Uri.parse(reUri);
         final srcDirUri = reParsed.scheme == 'dart'
             ? 'dart:${reParsed.path}'
             : '${reParsed.scheme}:${posix.dirname(reParsed.path)}';
-        _exportedLibMappings.putIfAbsent(srcDirUri, () => barrelUri);
+        _exportedLibMappings.putIfAbsent(srcDirUri, () => entry.barrelUri);
       }
     }
   }

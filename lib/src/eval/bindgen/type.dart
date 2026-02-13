@@ -320,18 +320,24 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
         typeEl.metadata2.annotations
             .any((e) => e.element2?.displayName == 'Bind');
     if (hasBridgeDecl || hasBindAnno) {
-      final parsedUri = Uri.parse(uri);
+      // First check per-type mapping (e.g. 'dart:ui#TextRange' → widgets barrel)
+      // which handles types whose binding lives in a different barrel than
+      // their source library.
+      String? mappedUri = ctx.exportedLibMappings['$uri#$name'];
 
-      String current = parsedUri.path;
-      String? mappedUri;
-      // walk up the path until we find a match in ctx.exportedLibMappings
-      while (current != path.dirname(current)) {
-        if (ctx.exportedLibMappings
-            .containsKey('${parsedUri.scheme}:$current')) {
-          mappedUri = ctx.exportedLibMappings['${parsedUri.scheme}:$current']!;
-          break;
+      // Fall back to library/directory walk-up
+      if (mappedUri == null) {
+        final parsedUri = Uri.parse(uri);
+        String current = parsedUri.path;
+        while (current != path.dirname(current)) {
+          if (ctx.exportedLibMappings
+              .containsKey('${parsedUri.scheme}:$current')) {
+            mappedUri =
+                ctx.exportedLibMappings['${parsedUri.scheme}:$current']!;
+            break;
+          }
+          current = path.dirname(current);
         }
-        current = path.dirname(current);
       }
 
       if (mappedUri != null) {
@@ -423,10 +429,23 @@ String wrapFunctionType(BindgenContext ctx, FunctionType type, String expr) {
 ///
 /// For `Map<String, String>` returns `'<String, String>'`.
 /// For unparameterized or all-dynamic types returns `''`.
-String castTypeArgsSuffix(DartType type) {
+///
+/// When [ctx] is provided, adds imports for each type argument's defining
+/// library so the generated `.cast<Widget>()` can find the `Widget` type.
+String castTypeArgsSuffix(BindgenContext ctx, DartType type) {
   if (type is ParameterizedType) {
     final args = type.typeArguments;
     if (args.isNotEmpty && !args.every((a) => a is DynamicType)) {
+      for (final arg in args) {
+        if (arg is DynamicType) continue;
+        final el = arg.element3;
+        if (el != null) {
+          final lib = el.library2;
+          if (lib != null) {
+            ctx.imports.add(lib.uri.toString());
+          }
+        }
+      }
       return '<${args.map((a) => a.getDisplayString()).join(', ')}>';
     }
   }
