@@ -251,6 +251,11 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     return '$unionStr\$Function((runtime, target, args) => $expr())';
   }
 
+  // Record types (e.g. ({double a, double b})) have no element — skip them.
+  if (type is RecordType) {
+    return null;
+  }
+
   final element = type.element3 ??
       (throw BindingGenerationError('Type $type has no element'));
   final lib = element.library2!;
