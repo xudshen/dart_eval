@@ -8,6 +8,10 @@ import 'package:dart_eval/src/eval/bindgen/errors.dart';
 import 'package:dart_eval/src/eval/bindgen/parameters.dart';
 import 'package:path/path.dart' as path;
 
+/// Sentinel returned by [wrapVar] when a type has no binding and the member
+/// should be skipped rather than generating a runtime.wrapAlways() fallback.
+const wrapVarSkipSentinel = '__SKIP__UNBOUND_TYPE__';
+
 String bridgeTypeRefFromType(BindgenContext ctx, DartType type) {
   if (type is TypeParameterType) {
     return 'BridgeTypeRef.ref(\'${type.element3.name3}\')';
@@ -115,7 +119,8 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
     {bool func = false,
     bool wrapList = false,
     List<ElementAnnotation>? metadata,
-    bool forCollection = false}) {
+    bool forCollection = false,
+    String runtimeExpr = 'runtime'}) {
   if (type is VoidType || type is NeverType) {
     if (func) {
       return 'const \$null()';
@@ -132,10 +137,10 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
 
   if (wrapped == null) {
     if (ctx.unknownTypes.add(type.element3!.name3!)) {
-      print('Warning: type ${type.element3!.name3} is not bound, '
-          'falling back to wrapAlways()');
+      print('Warning: type ${type.element3!.name3} is not bound — '
+          'member will be skipped');
     }
-    wrapped = 'runtime.wrapAlways($expr)';
+    return wrapVarSkipSentinel;
   }
 
   if (type.nullabilitySuffix == NullabilitySuffix.question) {
