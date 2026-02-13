@@ -446,7 +446,7 @@ String castTypeArgsSuffix(BindgenContext ctx, DartType type) {
           }
         }
       }
-      return '<${args.map((a) => a.getDisplayString()).join(', ')}>';
+      return '<${args.map((a) => a is TypeParameterType ? 'dynamic' : a.getDisplayString()).join(', ')}>';
     }
   }
   return '';
