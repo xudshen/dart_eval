@@ -41,16 +41,26 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
   final methods0 = methods.values
       .where((method) => !method.isPrivate && !method.isStatic)
       .where(
-          (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)));
+          (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
+      // For bridge $bridgeGet: skip abstract methods — super.abstract() is
+      // invalid. Abstract methods are handled by bindDecoratorMethods via
+      // $_invoke instead.
+      .where((m) => !isBridge || !m.isAbstract);
   if (getters.isEmpty && methods0.isEmpty) {
     return '';
   }
   if (isBridge) {
-    return 'switch (identifier) {\n${getters.map((e) => '''
+    return 'switch (identifier) {\n${getters.map((e) {
+      final wrapped = wrapVar(ctx, e.type.returnType, '_${e.displayName}', metadata: e.metadata2.annotations);
+      if (wrapped == wrapVarSkipSentinel) return '';
+      return '''
       case '${e.displayName}':
         final _${e.displayName} = super.${e.displayName};
-        return ${wrapVar(ctx, e.type.returnType, '_${e.displayName}', metadata: e.metadata2.annotations)};
-      ''').join('\n')}${methods0.map((e) {
+        return $wrapped;
+      ''';
+    }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) {
+      final returnWrapped = wrapVar(ctx, e.returnType, 'result');
+      if (returnWrapped == wrapVarSkipSentinel) return '';
       final returnsValue =
           e.returnType is! VoidType && !e.returnType.isDartCoreNull;
       final op = resolveMethodOperator(e.displayName);
@@ -59,15 +69,19 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
           return \$Function((runtime, target, args) {
             ${assertMethodPermissions(e)}
             ${returnsValue ? 'final result = ' : ''}${op.format('super', argumentAccessors(ctx, e.formalParameters, isBridgeMethod: true))};
-            return ${wrapVar(ctx, e.returnType, 'result')};
+            return $returnWrapped;
           });''';
-    }).join('\n')}\n}';
+    }).where((s) => s.isNotEmpty).join('\n')}\n}';
   }
-  return 'switch (identifier) {\n${getters.map((e) => '''
+  return 'switch (identifier) {\n${getters.map((e) {
+      final wrapped = wrapVar(ctx, e.type.returnType, '_${e.name3}', metadata: e.metadata2.annotations);
+      if (wrapped == wrapVarSkipSentinel) return '';
+      return '''
       case '${e.name3}':
         final _${e.name3} = \$value.${e.name3};
-        return ${wrapVar(ctx, e.type.returnType, '_${e.name3}', metadata: e.metadata2.annotations)};
-      ''').join('\n')}${methods0.map((e) => '''
+        return $wrapped;
+      ''';
+    }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) => '''
       case '${e.name3}':
         return __${resolveMethodOperator(e.displayName).name};
       ''').join('\n')}\n}';
