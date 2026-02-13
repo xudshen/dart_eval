@@ -62,11 +62,14 @@ String $staticMethods(BindgenContext ctx, InterfaceElement2 element) {
           !e.isPrivate &&
           !ctx.externMembers.contains(e.name3))
       .map((e) => _$staticMethod(ctx, element, e))
+      .where((s) => s.isNotEmpty)
       .join('\n');
 }
 
 String _$staticMethod(
     BindgenContext ctx, InterfaceElement2 element, MethodElement2 method) {
+  final returnWrapped = wrapVar(ctx, method.returnType, "value");
+  if (returnWrapped == wrapVarSkipSentinel) return '';
   return '''
   /// Wrapper for the [${element.name3}.${method.name3}] method
   static \$Value? \$${method.name3}(Runtime runtime, \$Value? target, List<\$Value?> args) {
@@ -74,7 +77,7 @@ String _$staticMethod(
     final value = ${element.name3}.${method.name3}(
       ${argumentAccessors(ctx, method.formalParameters).join(', ')}
     );
-    return ${wrapVar(ctx, method.returnType, "value")};
+    return $returnWrapped;
   }
 ''';
 }
@@ -88,16 +91,19 @@ String $staticGetters(BindgenContext ctx, InterfaceElement2 element) {
           (e.nonSynthetic2 is! FieldElement2 ||
               !(e.nonSynthetic2 as FieldElement2).isEnumConstant))
       .map((e) => _$staticGetter(ctx, element, e))
+      .where((s) => s.isNotEmpty)
       .join('\n');
 }
 
 String _$staticGetter(BindgenContext ctx, InterfaceElement2 element,
     PropertyAccessorElement2 getter) {
+  final returnWrapped = wrapVar(ctx, getter.returnType, "value");
+  if (returnWrapped == wrapVarSkipSentinel) return '';
   return '''
   /// Wrapper for the [${element.name3}.${getter.name3}] getter
   static \$Value? \$${getter.name3}(Runtime runtime, \$Value? target, List<\$Value?> args) {
     final value = ${element.name3}.${getter.name3};
-    return ${wrapVar(ctx, getter.returnType, "value")};
+    return $returnWrapped;
   }
 ''';
 }

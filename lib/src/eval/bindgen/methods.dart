@@ -19,6 +19,8 @@ String $methods(BindgenContext ctx, InterfaceElement2 element) {
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
       .map((e) {
+    final returnWrapped = wrapVar(ctx, e.returnType, 'result');
+    if (returnWrapped == wrapVarSkipSentinel) return '';
     final returnsValue =
         e.returnType is! VoidType && !e.returnType.isDartCoreNull;
     final op = resolveMethodOperator(e.displayName);
@@ -28,7 +30,7 @@ String $methods(BindgenContext ctx, InterfaceElement2 element) {
           ${assertMethodPermissions(e)}
           final self = target! as \$${element.name3};
           ${returnsValue ? 'final result = ' : ''}${op.format('self.\$value', argumentAccessors(ctx, e.formalParameters))};
-          return ${wrapVar(ctx, e.returnType, 'result')};
+          return $returnWrapped;
         }''';
-  }).join('\n');
+  }).where((s) => s.isNotEmpty).join('\n');
 }
