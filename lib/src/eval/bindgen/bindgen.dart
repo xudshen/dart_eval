@@ -177,12 +177,6 @@ class Bindgen implements BridgeDeclarationRegistry {
         final element = libElement.exportNamespace.get2(typeName);
         if (element == null) continue;
 
-        // Skip generic types
-        if (element is InterfaceElement2 &&
-            element.typeParameters2.isNotEmpty) {
-          continue;
-        }
-
         final actualUri = element.library2?.uri.toString();
         if (actualUri == null) continue;
 
@@ -342,18 +336,6 @@ class Bindgen implements BridgeDeclarationRegistry {
     final element = libElement.exportNamespace.get2(className);
     if (element == null) {
       print('Warning: $className not found in $libraryUri');
-      return null;
-    }
-
-    // Skip generic types — bindgen generates $T.wrap() but $T doesn't exist
-    final hasTypeParams = switch (element) {
-      InterfaceElement2 e => e.typeParameters2.isNotEmpty,
-      TopLevelFunctionElement e => e.typeParameters2.isNotEmpty,
-      _ => false,
-    };
-    if (hasTypeParams) {
-      print('Warning: Skipping $className from $libraryUri '
-          '(generic types not yet supported)');
       return null;
     }
 

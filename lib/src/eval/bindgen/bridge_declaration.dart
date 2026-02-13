@@ -2,6 +2,8 @@ import 'package:analyzer/dart/element/element2.dart';
 import 'package:dart_eval/src/eval/bindgen/context.dart';
 import 'package:dart_eval/src/eval/bindgen/parameters.dart';
 import 'package:dart_eval/src/eval/bindgen/type.dart';
+import 'package:dart_eval/src/eval/bridge/declaration/class.dart';
+import 'package:dart_eval/src/eval/bridge/declaration/enum.dart';
 
 String bindTypeSpec(BindgenContext ctx, InterfaceElement2 element) {
   final uri = ctx.libOverrides[element.name3] ?? ctx.uri;
@@ -53,10 +55,24 @@ String? bindBridgeDeclaration(BindgenContext ctx, InterfaceElement2 element,
   var extendsStr = '';
   if (element is ClassElement2 &&
       element.supertype != null &&
-      !element.supertype!.isDartCoreObject &&
-      !ctx.implicitSupers) {
-    extendsStr =
-        '\n\$extends: ${bridgeTypeRefFromType(ctx, element.supertype!)},';
+      !element.supertype!.isDartCoreObject) {
+    final superName = element.supertype!.element3.name3;
+    // Only emit $extends when the supertype is resolvable at dart_eval
+    // compile time: not private, and either a builtin or registered type.
+    final isPrivateSuper = superName != null && superName.startsWith('_');
+    final isBuiltin = builtinTypeFrom(element.supertype!) != null;
+    final superLib = element.supertype!.element3.library2?.uri.toString();
+    final isRegistered = superLib != null &&
+        ctx.bridgeDeclarations[superLib]?.any((d) {
+              if (d is BridgeClassDef) return d.type.type.spec?.name == superName;
+              if (d is BridgeEnumDef) return d.type.spec?.name == superName;
+              return false;
+            }) ==
+            true;
+    if (!isPrivateSuper && (isBuiltin || isRegistered)) {
+      extendsStr =
+          '\n\$extends: ${bridgeTypeRefFromType(ctx, element.supertype!)},';
+    }
   }
 
   var implementsStr = '';

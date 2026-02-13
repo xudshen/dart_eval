@@ -33,9 +33,6 @@ class TypeDependency {
 /// Types from `dart:core`, `dart:async`, `dart:collection`, `dart:convert`,
 /// `dart:io`, `dart:math`, and `dart:typed_data` are skipped because
 /// dart_eval provides built-in wrappers for them.
-///
-/// Generic types (with type parameters) are skipped because bindgen cannot
-/// auto-generate bindings for them.
 Set<TypeDependency> collectDependencyTypes(
   InterfaceElement2 element, {
   required Set<String> knownTypes,
@@ -88,9 +85,6 @@ Set<TypeDependency> collectDependencyTypes(
         return;
       }
     }
-
-    // Skip generic types (can't auto-generate bindings for them)
-    if (el is InterfaceElement2 && el.typeParameters2.isNotEmpty) return;
 
     final isEnum = el is EnumElement2;
     deps.add(TypeDependency(

@@ -142,7 +142,7 @@ void main() {
     });
   });
 
-  group('Bindgen.parseFromConfig() — 泛型跳过', () {
+  group('Bindgen.parseFromConfig() — 泛型生成', () {
     late Bindgen bindgen;
 
     setUpAll(() {
@@ -154,37 +154,40 @@ void main() {
       }
     });
 
-    test('泛型函数 min<T> 返回 null（跳过）', () async {
+    test('泛型函数 min<T> 生成绑定', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'min',
         overrideLibrary: 'dart:math',
       );
 
-      expect(output, isNull, reason: '泛型函数应被跳过');
+      expect(output, isNotNull, reason: '泛型函数应生成绑定');
+      expect(output, contains('\$minFn'));
     });
 
-    test('泛型函数 max<T> 返回 null（跳过）', () async {
+    test('泛型函数 max<T> 生成绑定', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'max',
         overrideLibrary: 'dart:math',
       );
 
-      expect(output, isNull, reason: '泛型函数应被跳过');
+      expect(output, isNotNull, reason: '泛型函数应生成绑定');
+      expect(output, contains('\$maxFn'));
     });
 
-    test('泛型类 Point<T> 返回 null（跳过）', () async {
+    test('泛型类 Point<T> 生成绑定', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'Point',
         overrideLibrary: 'dart:math',
       );
 
-      expect(output, isNull, reason: '泛型类应被跳过');
+      expect(output, isNotNull, reason: '泛型类应生成绑定');
+      expect(output, contains('\$Point'));
     });
 
-    test('泛型类型不注册到 registerClasses/registerFunctions', () async {
+    test('泛型类型注册到 registerClasses/registerFunctions', () async {
       final bindgenLocal = Bindgen();
       final projectRoot = findProjectRoot(Directory.current);
       final packageConfig = getPackageConfig(projectRoot);
@@ -203,10 +206,10 @@ void main() {
         overrideLibrary: 'dart:math',
       );
 
-      expect(bindgenLocal.registerFunctions, isEmpty,
-          reason: '泛型函数不应注册');
-      expect(bindgenLocal.registerClasses, isEmpty,
-          reason: '泛型类不应注册');
+      expect(bindgenLocal.registerFunctions, hasLength(1),
+          reason: '泛型函数应注册');
+      expect(bindgenLocal.registerClasses, hasLength(1),
+          reason: '泛型类应注册');
     });
   });
 

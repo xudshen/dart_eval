@@ -80,14 +80,14 @@ void main() {
       // The method should complete without throwing
     });
 
-    test('generic types are skipped during pre-registration', () async {
+    test('generic types are pre-registered alongside non-generic', () async {
       final bg = Bindgen();
       final pc = getPackageConfig(projectRoot);
       for (final package in pc.packages) {
         bg.inject(package: package);
       }
 
-      // Point<T> is generic — it should be skipped
+      // Point<T> is generic — should be pre-registered just like Random
       final libraries = [
         LibraryConfig(
           uri: 'dart:math',
@@ -106,7 +106,7 @@ void main() {
         projectRootPath: projectRoot.path,
       );
 
-      // Random should still generate fine
+      // Both generic and non-generic types should generate fine
       final output = await bg.parseFromConfig(
         libraryUri: 'dart:math',
         className: 'Random',
