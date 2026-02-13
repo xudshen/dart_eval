@@ -169,6 +169,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
         }
         ctx.imports.add(type0.element3!.library2!.uri.toString());
         final wrapper = wrapVar(ctx, type0, expr);
+        if (wrapper == wrapVarSkipSentinel) continue;
 
         unionStr += '$expr is ${type0.element3!.name3} ? $wrapper : ';
       }
@@ -188,7 +189,9 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
   }
 
   if (type is FunctionType) {
-    return unionStr + wrapFunctionType(ctx, type, expr);
+    final funcWrap = wrapFunctionType(ctx, type, expr);
+    if (funcWrap == wrapVarSkipSentinel) return null;
+    return unionStr + funcWrap;
   }
 
   if (type.isDartCoreFunction) {
@@ -224,12 +227,16 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
       }
       final generic = type as ParameterizedType;
       final arg = generic.typeArguments.first;
-      return '$unionStr\$List.view($expr, (e) => ${wrapVar(ctx, arg, 'e')})';
+      final innerWrap = wrapVar(ctx, arg, 'e');
+      if (innerWrap == wrapVarSkipSentinel) return null;
+      return '$unionStr\$List.view($expr, (e) => $innerWrap)';
     }
     if (name == 'Stream') {
       final generic = type as ParameterizedType;
       final arg = generic.typeArguments.first;
-      return '$unionStr\$Stream.wrap($expr.map((e) => ${wrapVar(ctx, arg, 'e')}))';
+      final innerWrap = wrapVar(ctx, arg, 'e');
+      if (innerWrap == wrapVarSkipSentinel) return null;
+      return '$unionStr\$Stream.wrap($expr.map((e) => $innerWrap))';
     }
     if (name == 'Future') {
       final generic = type as ParameterizedType;
@@ -240,6 +247,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
         return '$unionStr\$Future.wrap($expr.then((_) => const \$null()))';
       }
       final inner = wrapVar(ctx, arg, 'e');
+      if (inner == wrapVarSkipSentinel) return null;
       // The Future value may be null at runtime (e.g. route pop without
       // result), even when the static type is non-nullable dynamic.
       // Guard with a null check so $Object(null) is never called.
@@ -296,7 +304,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     final bound = type.bound;
     if (bound is! DynamicType) {
       final b = wrapVar(ctx, bound, expr);
-      if (b != null) {
+      if (b != null && b != wrapVarSkipSentinel) {
         return '$unionStr$b';
       }
     }
@@ -363,8 +371,10 @@ String wrapFunctionType(BindgenContext ctx, FunctionType type, String expr) {
       }
     });
   }
+  final returnWrap = wrapVar(ctx, type.returnType, 'funcResult', func: true);
+  if (returnWrap == wrapVarSkipSentinel) return wrapVarSkipSentinel;
   buffer.write(
-      '); return ${wrapVar(ctx, type.returnType, 'funcResult', func: true)}; })');
+      '); return $returnWrap; })');
   return buffer.toString();
 }
 
