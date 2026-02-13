@@ -283,9 +283,23 @@ Future<BindResult> bind({
         depth++;
       }
 
-      if (verbose && allDeps.isNotEmpty) {
-        print('Warning: ${allDeps.length} dependencies remain unresolved '
-            'after $depth iteration(s) (max depth: ${config.resolveDepth}).');
+      // ── Dependency resolution report ──────────────────────────────
+      final autoResolved =
+          boundFiles.where((f) => f.contains('[auto-resolved]')).toList();
+      if (verbose) {
+        if (autoResolved.isNotEmpty) {
+          final names = autoResolved
+              .map((f) => f.split(' (').first)
+              .join(', ');
+          print('[resolve] Auto-added ${autoResolved.length} type(s): $names');
+        }
+        if (allDeps.isNotEmpty) {
+          print('[resolve] ${allDeps.length} dependenc${allDeps.length == 1 ? 'y' : 'ies'} '
+              'remain unresolved after $depth iteration(s) '
+              '(max depth: ${config.resolveDepth}).');
+        } else if (autoResolved.isEmpty) {
+          print('[resolve] No missing dependencies found.');
+        }
       }
     }
 
