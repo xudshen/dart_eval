@@ -419,9 +419,25 @@ ${$setProperty(ctx, element)}
       BindgenContext ctx, ClassElement2 element,
       {required bool isBridge}) {
     if (isBridge) {
+      // Build type parameter strings for bridge classes.
+      // Bridge classes need type parameters because they extend the real type
+      // (e.g., class $State$bridge<T extends StatefulWidget> extends State<T>).
+      final typeParams = element.typeParameters2;
+      final typeParamDecl = typeParams.isEmpty
+          ? ''
+          : '<${typeParams.map((t) {
+              final bound = t.bound;
+              return bound != null && !bound.isDartCoreObject
+                  ? '${t.name3} extends ${bound.getDisplayString()}'
+                  : t.name3;
+            }).join(', ')}>';
+      final typeParamUse = typeParams.isEmpty
+          ? ''
+          : '<${typeParams.map((t) => t.name3).join(', ')}>';
+
       return '''
 /// dart_eval bridge binding for [${element.name3}]
-class \$${element.name3}\$bridge extends ${element.name3} with \$Bridge<${element.name3}> {
+class \$${element.name3}\$bridge$typeParamDecl extends ${element.name3}$typeParamUse with \$Bridge<${element.name3}$typeParamUse> {
 ${bindForwardedConstructors(ctx, element)}
 /// Configure this class for use in a [Runtime]
 ${bindConfigureForRuntime(ctx, element, isBridge: true)}
