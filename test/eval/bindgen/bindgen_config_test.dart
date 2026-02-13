@@ -211,6 +211,60 @@ void main() {
       expect(bindgenLocal.registerClasses, hasLength(1),
           reason: '泛型类应注册');
     });
+
+    test('wrap-only 泛型类使用类型擦除（class header 无 <T>）', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull);
+      // Type erasure: class header should NOT contain <T>
+      expect(output, contains('class \$Point implements \$Instance'));
+      // But should NOT have <T> in the class header
+      expect(output, isNot(contains('class \$Point<')));
+    });
+
+    test('泛型类 \$declaration 包含 generics map', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull);
+      expect(output, contains('generics:'));
+      expect(output, contains('BridgeGenericParam'));
+      expect(output, contains("'T'"));
+    });
+
+    test('泛型类成员使用 BridgeTypeRef.ref 引用类型参数', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull);
+      // Type parameters in bridge metadata should use BridgeTypeRef.ref
+      expect(output, contains('BridgeTypeRef.ref('));
+    });
+
+    test('bridge 模式泛型类 header 包含类型参数', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'Point',
+        overrideLibrary: 'dart:math',
+        isBridge: true,
+      );
+
+      expect(output, isNotNull);
+      // Bridge classes need type params for Dart compiler
+      expect(output, contains('\$Point\$bridge<'));
+      expect(output, contains('extends Point<'));
+      expect(output, contains('\$Bridge<Point<'));
+    });
   });
 
   group('Bindgen.parseFromConfig() — 边界情况', () {
