@@ -27,15 +27,19 @@ String positionalParameters(BindgenContext ctx,
 }
 
 String parameters(BindgenContext ctx, List<FormalParameterElement> params) {
-  return List.generate(
-      params.length, (index) => _parameterFrom(ctx, params[index])).join('\n');
+  return params.map((p) => _parameterFrom(ctx, p)).join('\n');
 }
 
 String _parameterFrom(BindgenContext ctx, FormalParameterElement parameter) {
+  // Use dynamic type for parameters with unresolvable types to avoid
+  // compiler errors while preserving correct parameter count/indices.
+  final typeAnnotation = isTypeResolvable(ctx, parameter.type)
+      ? bridgeTypeAnnotationFrom(ctx, parameter.type)
+      : 'BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic, []))';
   return '''
     BridgeParameter(
       '${parameter.name3}',
-      ${bridgeTypeAnnotationFrom(ctx, parameter.type)},
+      $typeAnnotation,
       ${parameter.isOptional ? 'true' : 'false'},
     ),
   ''';
@@ -52,6 +56,23 @@ String argumentAccessor(
   }
   final type = param.type;
   if (type.isDartCoreFunction || type is FunctionType) {
+    // For optional nullable function-type params, guard with null check so the
+    // closure is only created when the eval code provides a callback value.
+    // Without this, all callbacks would be non-null, triggering validation
+    // errors (e.g. GestureDetector rejects concurrent pan+scale handlers).
+    if (!param.isRequired &&
+        type.nullabilitySuffix == NullabilitySuffix.question) {
+      paramBuffer.write('args[$idx] == null ? null : ');
+    }
+    // For optional non-nullable function-type params with defaults
+    // (e.g. AppBar.notificationPredicate = defaultScrollNotificationPredicate),
+    // skip entirely — let the Dart constructor use its default value.
+    // Creating a closure would override the default, and args[idx] being null
+    // (not passed by eval code) would crash on the non-null assertion.
+    if (!param.isRequired &&
+        type.nullabilitySuffix != NullabilitySuffix.question) {
+      return '';
+    }
     paramBuffer.write('(');
     if (type is FunctionType) {
       paramBuffer.write(parameterHeader(type.formalParameters));
@@ -75,7 +96,7 @@ String argumentAccessor(
     }
     final q = (param.isRequired ? '' : '?');
     final call = (param.isRequired ? '' : '?.call');
-    paramBuffer.write('(args[$idx]! as EvalCallable$q)$call(runtime, null, [');
+    paramBuffer.write('(args[$idx]! as EvalCallable$q)$call(runtime, target, [');
     if (type is FunctionType) {
       for (var j = 0; j < type.formalParameters.length; j++) {
         final ftParam = type.formalParameters[j];
@@ -172,11 +193,15 @@ String argumentAccessor(
 /// Returns true if [code] references a private Dart member that would be
 /// inaccessible from a generated wrapper file.
 ///
-/// Detects top-level privates (e.g. `_snackBarDisplayDuration`) and qualified
-/// private members (e.g. `Tolerance._epsilonDefault`).
+/// Detects top-level privates (e.g. `_snackBarDisplayDuration`), qualified
+/// private members (e.g. `Tolerance._epsilonDefault`), and constructor calls
+/// to private types (e.g. `const _DefaultHeroTag()`).
 bool _isPrivateDefault(String code) {
   if (code.startsWith('_')) return true;
   if (code.contains('._')) return true;
+  // Catch `const _Foo()` / `new _Bar()` patterns where a private identifier
+  // appears after whitespace.
+  if (RegExp(r'\s_[A-Za-z]').hasMatch(code)) return true;
   return false;
 }
 

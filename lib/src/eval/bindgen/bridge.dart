@@ -42,6 +42,9 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
       .map((e) {
+    // Import libraries for types used in method signatures so the generated
+    // bridge class compiles (raw Dart type names must be in scope).
+    _importMethodTypes(ctx, e);
     // Pre-compute parameter wrappings; skip method if any param type is unbound
     final paramWraps = e.formalParameters
         .map((p) =>
@@ -49,6 +52,17 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
         .toList();
     if (paramWraps.any((w) => w == wrapVarSkipSentinel)) {
       return '';
+    }
+
+    // For non-abstract methods: skip if return type can't be wrapped, since
+    // $bridgeGet won't have a fallback for it. The Dart superclass
+    // implementation will run naturally instead.
+    // Abstract methods are always kept — eval code must provide them.
+    if (!e.isAbstract) {
+      final returnWrapped = wrapVar(ctx, e.returnType, '_');
+      if (returnWrapped == wrapVarSkipSentinel) {
+        return '';
+      }
     }
 
     final returnType = e.returnType;
@@ -85,12 +99,16 @@ String bindDecoratorProperties(BindgenContext ctx, ClassElement2 element) {
           (p) => !(const ['hashCode', 'runtimeType'].contains(p.name3)))
       .map((e) {
     final type = e.type;
+    // Skip properties whose type can't be wrapped — $bridgeGet won't have
+    // a fallback for them, so $_get would fail with a null cast.
+    final wrapped = wrapVar(ctx, type, '_');
+    if (wrapped == wrapVarSkipSentinel) return '';
 
     return '''
         @override
         $type get ${e.displayName} => \$_get('${e.displayName}');
         ''';
-  }).join('\n');
+  }).where((s) => s.isNotEmpty).join('\n');
 }
 
 String parameterHeader(List<FormalParameterElement> params,
@@ -145,4 +163,28 @@ String parameterHeader(List<FormalParameterElement> params,
   }
 
   return paramBuffer.toString();
+}
+
+/// Adds imports for all types referenced in a method's signature (return type
+/// and parameter types) so the generated bridge class file compiles.
+void _importMethodTypes(BindgenContext ctx, MethodElement2 method) {
+  void _importType(DartType type) {
+    final el = type.element3;
+    if (el != null) {
+      final lib = el.library2;
+      if (lib != null) {
+        ctx.imports.add(lib.uri.toString());
+      }
+    }
+    if (type is InterfaceType) {
+      for (final arg in type.typeArguments) {
+        _importType(arg);
+      }
+    }
+  }
+
+  _importType(method.returnType);
+  for (final param in method.formalParameters) {
+    _importType(param.type);
+  }
 }

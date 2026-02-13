@@ -47,8 +47,9 @@ String enumValuesForRuntime(BindgenContext ctx, EnumElement2 element) {
 String constructorsForRuntime(BindgenContext ctx, ClassElement2 element,
     {bool isBridge = false}) {
   return element.constructors2
-      .where(
-          (cstr) => (!element.isAbstract || cstr.isFactory) && !cstr.isPrivate)
+      .where((cstr) =>
+          !cstr.isPrivate &&
+          (cstr.isFactory || !element.isAbstract || isBridge))
       .map((e) => constructorForRuntime(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }

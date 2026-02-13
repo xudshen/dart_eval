@@ -34,7 +34,13 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         for (final m in s.element3.methods2) m.name3: m,
     for (final m in element.methods2) m.name3: m
   };
-  final getters = element.getters2
+  final gettersMap = {
+    if (ctx.implicitSupers)
+      for (var s in element.allSupertypes)
+        for (final g in s.element3.getters2) g.name3: g,
+    for (final g in element.getters2) g.name3: g
+  };
+  final getters = gettersMap.values
       .where((accessor) => !accessor.isStatic && !accessor.isPrivate)
       .where((a) => !(const ['hashCode', 'runtimeType'].contains(a.name3)));
 
@@ -68,7 +74,7 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         case '${e.displayName}':
           return \$Function((runtime, target, args) {
             ${assertMethodPermissions(e)}
-            ${returnsValue ? 'final result = ' : ''}${op.format('super', argumentAccessors(ctx, e.formalParameters, isBridgeMethod: true))};
+            ${returnsValue ? 'final result = ' : ''}${op.format('super', argumentAccessors(ctx, e.formalParameters, isBridgeMethod: false))};
             return $returnWrapped;
           });''';
     }).where((s) => s.isNotEmpty).join('\n')}\n}';

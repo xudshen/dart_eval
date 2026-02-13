@@ -776,21 +776,23 @@ ${$setProperty(ctx, element)}
   }
 
   String $superclassWrapper(BindgenContext ctx, InterfaceElement2 element) {
-    final supertype = element.supertype;
     final objectWrapper = '\$Object(\$value)';
-    if (supertype == null || ctx.implicitSupers || element is EnumElement2) {
+    if (element.supertype == null ||
+        ctx.implicitSupers ||
+        element is EnumElement2) {
       ctx.imports.add('package:dart_eval/stdlib/core.dart');
       return objectWrapper;
     }
-    final narrowWrapper = wrapType(ctx, supertype, '\$value');
-    if (narrowWrapper == null) {
-      print('Warning: Could not wrap supertype $supertype of ${element.name3},'
-          ' falling back to \$Object. Add a @Bind annotation to $supertype'
-          ' or set `implicitSupers: true`');
-      ctx.imports.add('package:dart_eval/stdlib/core.dart');
-      return objectWrapper;
+    var currentType = element.supertype;
+    while (currentType != null && !currentType.isDartCoreObject) {
+      final narrowWrapper = wrapType(ctx, currentType, '\$value');
+      if (narrowWrapper != null) return narrowWrapper;
+      final superElement = currentType.element3;
+      currentType =
+          (superElement is ClassElement2) ? superElement.supertype : null;
     }
-    return narrowWrapper;
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
+    return objectWrapper;
   }
 
   String $getRuntimeType(InterfaceElement2 element) {

@@ -7,8 +7,9 @@ import 'package:dart_eval/src/eval/bindgen/type.dart';
 String $constructors(BindgenContext ctx, ClassElement2 element,
     {bool isBridge = false}) {
   return element.constructors2
-      .where(
-          (cstr) => !cstr.isPrivate && (cstr.isFactory || !element.isAbstract))
+      .where((cstr) =>
+          !cstr.isPrivate &&
+          (cstr.isFactory || !element.isAbstract || isBridge))
       .map((e) => _$constructor(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }
@@ -42,13 +43,25 @@ String _$constructor(
     }
   }*/
 
+  if (isBridge) {
+    // Bridge constructors don't forward args — the eval code's constructor
+    // body runs through the $Bridge mechanism, setting properties via
+    // $_invoke/$_set. Just instantiate the empty bridge class.
+    return '''
+  /// Proxy for the [${element.name3}.$name] constructor
+  static \$Value? \$$name(Runtime runtime, \$Value? target, List<\$Value?> args) {
+    return $fullyQualifiedConstructorId();
+  }
+''';
+  }
+
   return '''
-  /// ${isBridge ? 'Proxy' : 'Wrapper'} for the [${element.name3}.$name] constructor
-  static \$Value? \$$name(Runtime runtime, \$Value? thisValue, List<\$Value?> args) {
-    return ${!isBridge ? '\$${element.name3}.wrap(' : ''}
+  /// Wrapper for the [${element.name3}.$name] constructor
+  static \$Value? \$$name(Runtime runtime, \$Value? target, List<\$Value?> args) {
+    return \$${element.name3}.wrap(
       $fullyQualifiedConstructorId(
         ${argumentAccessors(ctx, constructor.formalParameters).join(', ')}
-      ${!isBridge ? '),' : ''}
+      ),
     );
   }
 ''';

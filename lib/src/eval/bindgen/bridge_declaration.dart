@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/type.dart';
 import 'package:dart_eval/src/eval/bindgen/context.dart';
 import 'package:dart_eval/src/eval/bindgen/parameters.dart';
 import 'package:dart_eval/src/eval/bindgen/type.dart';
@@ -44,41 +45,48 @@ String? bindBridgeDeclaration(BindgenContext ctx, InterfaceElement2 element,
   if (typeParams.isNotEmpty && element is ClassElement2) {
     genericsStr = '''\ngenerics: {
       ${typeParams.map((e) {
-      final boundStr = e.bound != null && !ctx.implicitSupers
-          ? '\$extends: ${bridgeTypeRefFromType(ctx, e.bound!)}'
-          : '';
+      final boundStr =
+          e.bound != null && !ctx.implicitSupers && isTypeResolvable(ctx, e.bound!)
+              ? '\$extends: ${bridgeTypeRefFromType(ctx, e.bound!)}'
+              : '';
       return '\'${e.name3}\': BridgeGenericParam($boundStr)';
     }).join(',')}
     },''';
   }
 
   var extendsStr = '';
-  if (element is ClassElement2 &&
-      element.supertype != null &&
-      !element.supertype!.isDartCoreObject) {
-    final superName = element.supertype!.element3.name3;
-    // Only emit $extends when the supertype is resolvable at dart_eval
-    // compile time: not private, and either a builtin or registered type.
-    final isPrivateSuper = superName != null && superName.startsWith('_');
-    final isBuiltin = builtinTypeFrom(element.supertype!) != null;
-    final superLib = element.supertype!.element3.library2?.uri.toString();
-    final isRegistered = superLib != null &&
-        ctx.bridgeDeclarations[superLib]?.any((d) {
-              if (d is BridgeClassDef) return d.type.type.spec?.name == superName;
-              if (d is BridgeEnumDef) return d.type.spec?.name == superName;
-              return false;
-            }) ==
-            true;
-    if (!isPrivateSuper && (isBuiltin || isRegistered)) {
-      extendsStr =
-          '\n\$extends: ${bridgeTypeRefFromType(ctx, element.supertype!)},';
+  if (element is ClassElement2) {
+    var currentType = element.supertype;
+    while (currentType != null && !currentType.isDartCoreObject) {
+      final superName = currentType.element3.name3;
+      final isPrivateSuper = superName != null && superName.startsWith('_');
+      if (isPrivateSuper) {
+        currentType = (currentType.element3 as ClassElement2?)?.supertype;
+        continue;
+      }
+      // Check if the full type (including type arguments) is resolvable.
+      if (isTypeResolvable(ctx, currentType)) {
+        extendsStr =
+            '\n\$extends: ${bridgeTypeRefFromType(ctx, currentType)},';
+        break;
+      }
+      final superElement = currentType.element3;
+      currentType =
+          (superElement is ClassElement2) ? superElement.supertype : null;
     }
   }
 
   var implementsStr = '';
   if (element is ClassElement2 && element.interfaces.isNotEmpty) {
-    implementsStr =
-        '\n\$implements: [${element.interfaces.map((e) => bridgeTypeRefFromType(ctx, e)).join(', ')}],';
+    // Only emit $implements for interfaces that are fully resolvable at
+    // dart_eval compile time (builtin or registered, including type args).
+    final resolvableInterfaces = element.interfaces
+        .where((iface) => isTypeResolvable(ctx, iface))
+        .toList();
+    if (resolvableInterfaces.isNotEmpty) {
+      implementsStr =
+          '\n\$implements: [${resolvableInterfaces.map((e) => bridgeTypeRefFromType(ctx, e)).join(', ')}],';
+    }
   }
 
   var enumValuesStr = '';

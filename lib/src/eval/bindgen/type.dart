@@ -13,19 +13,59 @@ import 'package:path/path.dart' as path;
 /// should be skipped rather than generating a runtime.wrapAlways() fallback.
 const wrapVarSkipSentinel = '__SKIP__UNBOUND_TYPE__';
 
+/// Returns true if [type] can be resolved by the dart_eval compiler — i.e. it
+/// is a builtin type, a type parameter, a function type, or a type registered
+/// in [ctx.bridgeDeclarations]. Also recursively checks type arguments.
+bool isTypeResolvable(BindgenContext ctx, DartType type) {
+  if (type is VoidType ||
+      type is DynamicType ||
+      type is NeverType ||
+      type is TypeParameterType ||
+      type.isDartCoreNull ||
+      type.isDartCoreEnum) {
+    return true;
+  }
+  if (type is FunctionType) {
+    if (!isTypeResolvable(ctx, type.returnType)) return false;
+    return type.formalParameters
+        .every((p) => isTypeResolvable(ctx, p.type));
+  }
+  final isKnown =
+      builtinTypeFrom(type) != null || _isRegisteredType(ctx, type);
+  if (!isKnown) return false;
+  // Always check type arguments (e.g. List<Shadow> — List is builtin but
+  // Shadow may not be registered).
+  if (type is ParameterizedType) {
+    return type.typeArguments.every((arg) => isTypeResolvable(ctx, arg));
+  }
+  return true;
+}
+
+bool _isRegisteredType(BindgenContext ctx, DartType type) {
+  final el = type.element3;
+  if (el == null) return false;
+  final lib = el.library2?.uri.toString();
+  if (lib == null) return false;
+  final name = el.name3;
+  if (name == null) return false;
+  return ctx.bridgeDeclarations[lib]?.any((d) {
+        if (d is BridgeClassDef) return d.type.type.spec?.name == name;
+        if (d is BridgeEnumDef) return d.type.spec?.name == name;
+        return false;
+      }) ??
+      false;
+}
+
 String bridgeTypeRefFromType(BindgenContext ctx, DartType type) {
   if (type is TypeParameterType) {
     return 'BridgeTypeRef.ref(\'${type.element3.name3}\')';
   } else if (type is FunctionType) {
-    return '''BridgeTypeRef.genericFunction(BridgeFunctionDef(
-      returns: ${bridgeTypeAnnotationFrom(ctx, type.returnType)},
-      params: [
-        ${parameters(ctx, type.formalParameters.where((p) => p.isPositional).toList())}
-      ],
-      namedParams: [
-        ${parameters(ctx, type.formalParameters.where((p) => p.isNamed).toList())}
-      ],
-    ))''';
+    // Use CoreTypes.function instead of genericFunction to match
+    // flutter_eval's convention. dart_eval's compiler currently generates
+    // incompatible frame layouts for closures when a fully-typed function
+    // signature (genericFunction) is used in $declaration, causing
+    // RangeErrors during bridgeCall for closures that capture scope.
+    return 'BridgeTypeRef(CoreTypes.function)';
   } else if (type is ParameterizedType) {
     final typeArgs = type.typeArguments
         .map((e) => bridgeTypeAnnotationFrom(ctx, e))
