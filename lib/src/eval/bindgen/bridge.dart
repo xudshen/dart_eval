@@ -42,6 +42,15 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
       .map((e) {
+    // Pre-compute parameter wrappings; skip method if any param type is unbound
+    final paramWraps = e.formalParameters
+        .map((p) =>
+            wrapVar(ctx, p.type, p.name3 ?? '', runtimeExpr: '\$runtime'))
+        .toList();
+    if (paramWraps.any((w) => w == wrapVarSkipSentinel)) {
+      return '';
+    }
+
     final returnType = e.returnType;
     final needsCast = returnType.isDartCoreList ||
         returnType.isDartCoreMap ||
@@ -56,10 +65,10 @@ String bindDecoratorMethods(BindgenContext ctx, ClassElement2 element) {
         @override
         $returnType ${e.displayName}(${parameterHeader(e.formalParameters)}) =>
           ${needsCast ? '(' : ''}\$_invoke('${e.displayName}', [
-            ${e.formalParameters.map((p) => wrapVar(ctx, p.type, p.name3 ?? '')).join(', ')}
+            ${paramWraps.join(', ')}
           ])$castSuffix;
         ''';
-  }).join('\n');
+  }).where((s) => s.isNotEmpty).join('\n');
 }
 
 String bindDecoratorProperties(BindgenContext ctx, ClassElement2 element) {
@@ -72,6 +81,8 @@ String bindDecoratorProperties(BindgenContext ctx, ClassElement2 element) {
 
   return properties.values
       .where((property) => !property.isPrivate && !property.isStatic)
+      .where(
+          (p) => !(const ['hashCode', 'runtimeType'].contains(p.name3)))
       .map((e) {
     final type = e.type;
 
@@ -113,6 +124,11 @@ String parameterHeader(List<FormalParameterElement> params,
     }
     paramBuffer.write(
         param.name3 == null || param.name3!.isEmpty ? 'arg$i' : param.name3);
+    // Include default values for non-required named/optional params in
+    // override signatures (required for non-nullable types).
+    if (!forConstructor && param.hasDefaultValue && !param.isRequired) {
+      paramBuffer.write(' = ${param.defaultValueCode}');
+    }
     if (i < params.length - 1) {
       paramBuffer.write(', ');
     }
