@@ -9,6 +9,7 @@ class BindgenConfig {
   final bool resolveDependencies;
   final int resolveDepth;
   final List<String> resolveExclude;
+  final List<EvalSourceEntry> evalSources;
 
   BindgenConfig({
     this.output,
@@ -16,6 +17,7 @@ class BindgenConfig {
     this.resolveDependencies = false,
     this.resolveDepth = 2,
     this.resolveExclude = const [],
+    this.evalSources = const [],
   });
 
   factory BindgenConfig.fromYaml(String yamlString) {
@@ -31,6 +33,10 @@ class BindgenConfig {
       resolveDepth: doc['resolve_depth'] as int? ?? 2,
       resolveExclude: (doc['resolve_exclude'] as YamlList?)
               ?.cast<String>()
+              .toList() ??
+          [],
+      evalSources: (doc['eval_sources'] as YamlList?)
+              ?.map((e) => EvalSourceEntry.fromYaml(e))
               .toList() ??
           [],
     );
@@ -105,6 +111,41 @@ class ClassEntry {
       bridge: map['bridge'] as bool? ?? false,
       wrap: map['wrap'] as bool? ?? false,
       extern: (map['extern'] as YamlList?)?.cast<String>().toList() ?? [],
+    );
+  }
+}
+
+/// An eval source entry: a const Dart source string injected into the compiler
+/// as-is (not bridge/wrapper). Used for types like Icons with 1500+ static
+/// const fields where bridge binding is impractical.
+class EvalSourceEntry {
+  /// URI registered in the compiler, e.g. `package:flutter/src/material/icons.dart`
+  final String uri;
+
+  /// Import path relative to project root, e.g. `lib/src/material/icons_source.dart`
+  final String importPath;
+
+  /// Const variable name holding the source string, e.g. `materialIconsSource`
+  final String constName;
+
+  /// Library URI whose DartSource barrel should re-export this source (optional).
+  /// E.g. `package:flutter/material.dart`
+  final String? exportFrom;
+
+  EvalSourceEntry({
+    required this.uri,
+    required this.importPath,
+    required this.constName,
+    this.exportFrom,
+  });
+
+  factory EvalSourceEntry.fromYaml(dynamic value) {
+    final map = value as YamlMap;
+    return EvalSourceEntry(
+      uri: map['uri'] as String,
+      importPath: map['import'] as String,
+      constName: map['const'] as String,
+      exportFrom: map['export_from'] as String?,
     );
   }
 }

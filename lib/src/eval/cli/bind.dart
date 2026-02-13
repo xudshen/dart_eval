@@ -409,6 +409,7 @@ Future<BindResult> bind({
         formatter: formatter,
         verbose: verbose,
         mappingLines: mappingLines,
+        config: config,
       );
     }
 
@@ -797,6 +798,15 @@ String _generateDartSources({
           exportPaths.add(relPath);
         }
       }
+      // Inject eval source exports into matching library barrel
+      for (final es in config.evalSources) {
+        if (es.exportFrom == lib.uri) {
+          final esParsed = Uri.parse(es.uri);
+          final relPath = posix.relative(esParsed.path, from: libDir);
+          exportPaths.add(relPath);
+        }
+      }
+
       for (final p in exportPaths.toList()..sort()) {
         buf.writeln("export '$p';");
       }
@@ -817,6 +827,12 @@ String _generateDartSources({
       final content = buf.toString().trimRight();
       sourceLines.add(
           "registry.addSource(DartSource('${lib.uri}', '''$content'''));");
+    }
+
+    // Append addSource lines for eval sources (e.g. Icons)
+    for (final es in config.evalSources) {
+      sourceLines.add(
+          "registry.addSource(DartSource('${es.uri}', ${es.constName}));");
     }
   } else {
     // ── @Bind mode ───────────────────────────────────────────────
@@ -871,6 +887,7 @@ String _generatePluginFile({
   required bool verbose,
   required String mappingLines,
   String pluginFileName = 'plugin.dart',
+  BindgenConfig? config,
 }) {
   final pluginFilePath = join(outputBasePath, pluginFileName);
   Directory(dirname(pluginFilePath)).createSync(recursive: true);
@@ -887,9 +904,16 @@ String _generatePluginFile({
     importPaths.add(e.file);
   }
 
+  // Generate imports for eval source const variables
+  final evalSourceImports = config?.evalSources.map((e) {
+    final pkgPath = e.importPath.replaceFirst('lib/', '');
+    return "import 'package:$packageName/$pkgPath';";
+  }).join('\n') ?? '';
+
   final pluginContent = '''
 import 'package:dart_eval/dart_eval_bridge.dart';
 ${importPaths.map((p) => "import '$p';").join('\n')}
+$evalSourceImports
 
 /// [EvalPlugin] for $packageName
 class ${packageName.toPascalCase()}Plugin implements EvalPlugin {
