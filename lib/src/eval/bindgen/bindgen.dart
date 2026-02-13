@@ -155,6 +155,11 @@ class Bindgen implements BridgeDeclarationRegistry {
             barrelFileName,
           ])}';
 
+      // Build a lookup for bridge-mode flags from config
+      final bridgeFlags = <String, bool>{
+        for (final c in lib.classes) c.name: c.bridge,
+      };
+
       final allTypeNames = [
         ...lib.classes.map((c) => c.name),
         ...lib.enums,
@@ -173,9 +178,12 @@ class Bindgen implements BridgeDeclarationRegistry {
         final actualUri = element.library2?.uri.toString();
         if (actualUri == null) continue;
 
-        // Register minimal bridge declaration (so wrapType can find it)
+        // Register minimal bridge declaration (so wrapType can find it).
+        // Skip if this type is already registered (e.g. from JSON manifests)
+        // to avoid overriding bridge-mode declarations with wrapper-mode ones.
         final spec = BridgeTypeSpec(actualUri, typeName);
-        try {
+        if (!hasDeclaration(actualUri, typeName)) {
+          final isBridge = bridgeFlags[typeName] ?? false;
           if (element is EnumElement2) {
             defineBridgeEnum(BridgeEnumDef(
               BridgeTypeRef(spec),
@@ -193,12 +201,10 @@ class Bindgen implements BridgeDeclarationRegistry {
               getters: {},
               setters: {},
               fields: {},
-              wrap: true,
-              bridge: false,
+              wrap: !isBridge,
+              bridge: isBridge,
             ));
           }
-        } catch (_) {
-          // May already be registered from JSON manifests — skip
         }
 
         // Register exported lib mapping (so wrapType can find the import path)
@@ -218,6 +224,18 @@ class Bindgen implements BridgeDeclarationRegistry {
         _exportedLibMappings.putIfAbsent(srcDirUri, () => barrelUri);
       }
     }
+  }
+
+  /// Check if a type with the given [name] from [libraryUri] is already
+  /// registered in [_bridgeDeclarations].
+  bool hasDeclaration(String libraryUri, String name) {
+    final decls = _bridgeDeclarations[libraryUri];
+    if (decls == null) return false;
+    return decls.any((d) {
+      if (d is BridgeClassDef) return d.type.type.spec?.name == name;
+      if (d is BridgeEnumDef) return d.type.spec?.name == name;
+      return false;
+    });
   }
 
   /// Look up the exported library mapping for a type's source library URI.

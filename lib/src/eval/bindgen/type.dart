@@ -3,6 +3,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:change_case/change_case.dart';
 import 'package:collection/collection.dart';
+import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bindgen/context.dart';
 import 'package:dart_eval/src/eval/bindgen/errors.dart';
 import 'package:dart_eval/src/eval/bindgen/parameters.dart';
@@ -110,7 +111,14 @@ String? builtinTypeFrom(DartType type) {
     return 'MathTypes.$lowerCamelCaseName';
   }
   if (uri == 'dart:typed_data') {
-    return 'TypedDataTypes.$lowerCamelCaseName';
+    // Only these 4 types have TypedDataTypes constants in dart_eval.
+    const validTypedDataTypes = {
+      'ByteBuffer', 'TypedData', 'ByteData', 'Uint8List'
+    };
+    if (validTypedDataTypes.contains(name)) {
+      return 'TypedDataTypes.$lowerCamelCaseName';
+    }
+    return null;
   }
   return null;
 }
@@ -123,12 +131,14 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
     String runtimeExpr = 'runtime'}) {
   if (type is VoidType || type is NeverType) {
     if (func) {
+      ctx.imports.add('package:dart_eval/stdlib/core.dart');
       return 'const \$null()';
     }
     return 'null';
   }
 
   if (type.isDartCoreNull) {
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
     return 'const \$null()';
   }
 
@@ -145,6 +155,7 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
   }
 
   if (type.nullabilitySuffix == NullabilitySuffix.question) {
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
     if (forCollection) {
       return 'if ($expr == null) const \$null() else $wrapped';
     }
@@ -181,6 +192,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
   }
 
   if (type.isDartCoreNull) {
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
     return '${unionStr}const \$null()';
   }
 
@@ -245,6 +257,7 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
       // Future<void> / Future<Null>: callback value is unusable, always
       // return const $null().
       if (arg is VoidType || arg.isDartCoreNull) {
+        ctx.imports.add('package:dart_eval/stdlib/core.dart');
         return '$unionStr\$Future.wrap($expr.then((_) => const \$null()))';
       }
       final inner = wrapVar(ctx, arg, 'e');
@@ -255,6 +268,9 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
       final body = arg is DynamicType
           ? 'e == null ? const \$null() : $inner'
           : inner;
+      if (arg is DynamicType) {
+        ctx.imports.add('package:dart_eval/stdlib/core.dart');
+      }
       return '$unionStr\$Future.wrap($expr.then((e) => $body))';
     }
     // Types without dart_eval stdlib wrappers — fall through to
@@ -266,16 +282,40 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
     if (noStdlibWrapper.contains(name)) {
       return null;
     }
+    // dart:typed_data — only 4 types have stdlib wrappers.
+    if (which == 'typed_data') {
+      const typedDataWrappers = {
+        'ByteBuffer', 'TypedData', 'ByteData', 'Uint8List'
+      };
+      if (!typedDataWrappers.contains(name)) {
+        return null;
+      }
+    }
     return '$unionStr\$$name.wrap($expr)';
     } // end hasSdkStdlib else
   }
 
   final typeEl = type.element3!;
   if (typeEl is InterfaceElement2) {
+    // Skip private types — they can't have public bindings
+    if (name.startsWith('_')) return null;
+
     final uri = typeEl.library2.uri.toString();
-    // Gate: type is known to have bindings, either from loaded JSON
-    // (bridgeDeclarations) or from @Bind annotation (analyzer).
-    final hasBridgeDecl = ctx.bridgeDeclarations.containsKey(uri);
+    // Gate: this specific type is known to have bindings, either from
+    // loaded JSON (bridgeDeclarations) or from @Bind annotation.
+    // Check the specific type name, not just the library — a library
+    // may have declarations for some types but not others.
+    final libraryDecls = ctx.bridgeDeclarations[uri];
+    final hasBridgeDecl = libraryDecls != null &&
+        libraryDecls.any((d) {
+          // Only wrapper-mode classes have $Name.wrap() — bridge-mode
+          // classes use $Name$bridge and cannot wrap host instances.
+          if (d is BridgeClassDef) {
+            return d.type.type.spec?.name == name && d.wrap;
+          }
+          if (d is BridgeEnumDef) return d.type.spec?.name == name;
+          return false;
+        });
     final hasBindAnno = !hasBridgeDecl &&
         typeEl.metadata2.annotations
             .any((e) => e.element2?.displayName == 'Bind');

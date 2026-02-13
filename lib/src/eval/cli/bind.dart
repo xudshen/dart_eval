@@ -225,7 +225,9 @@ Future<BindResult> bind({
         // so they can reference each other during code generation.
         for (final dep in currentBatch) {
           final spec = BridgeTypeSpec(dep.libraryUri, dep.name);
-          try {
+          // Only register if not already defined (e.g. from JSON manifests).
+          // This avoids overriding bridge-mode declarations with wrapper-mode.
+          if (!bindgen.hasDeclaration(dep.libraryUri, dep.name)) {
             if (dep.isEnum) {
               bindgen.defineBridgeEnum(BridgeEnumDef(
                 BridgeTypeRef(spec),
@@ -247,8 +249,6 @@ Future<BindResult> bind({
                 bridge: false,
               ));
             }
-          } catch (_) {
-            // May already be registered
           }
 
           // Ensure this dep's source directory has an exportedLibMapping
