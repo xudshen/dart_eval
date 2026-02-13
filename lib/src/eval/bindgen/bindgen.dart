@@ -20,6 +20,7 @@ import 'dart:io' as io;
 
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart';
+import 'package:dart_eval/src/eval/cli/bindgen_config.dart';
 
 /// Adapted from code by Alex Wallen (@a-wallen)
 class Bindgen implements BridgeDeclarationRegistry {
@@ -110,6 +111,134 @@ class Bindgen implements BridgeDeclarationRegistry {
   @override
   void addExportedLibraryMapping(String libraryUri, String exportUri) {
     _exportedLibMappings[libraryUri] = exportUri;
+  }
+
+  /// Pre-register all config types so they can reference each other during
+  /// generation.
+  ///
+  /// This populates [_bridgeDeclarations] with minimal [BridgeClassDef] /
+  /// [BridgeEnumDef] entries and [_exportedLibMappings] with barrel URIs so
+  /// that [wrapType] can find config-mode types when generating cross-library
+  /// references (e.g. `Widget.key` referencing `Key` from foundation).
+  ///
+  /// Must be called **before** the main generation loop.
+  Future<void> preRegisterConfigTypes(
+    List<LibraryConfig> libraries, {
+    required String packageName,
+    required String pluginOutputDir,
+    required String projectRootPath,
+  }) async {
+    _contextCollection ??= AnalysisContextCollection(
+      includedPaths: includedPaths,
+      resourceProvider: Bindgen.resourceProvider,
+    );
+    final session = _contextCollection!.contexts.first.currentSession;
+    final pluginOutputPath = join(projectRootPath, pluginOutputDir);
+
+    for (final lib in libraries) {
+      // Resolve the library
+      final libResult = await session.getLibraryByUri(lib.uri);
+      if (libResult is! LibraryElementResult) continue;
+      final libElement = libResult.element;
+
+      // Compute barrel URI for this library's output directory
+      final libOutputPath = lib.output != null
+          ? join(projectRootPath, lib.output!)
+          : join(projectRootPath, pluginOutputDir, 'src');
+      final relFromPlugin = relative(libOutputPath, from: pluginOutputPath);
+      final barrelFileName =
+          '${relFromPlugin == '.' ? 'src' : relFromPlugin}.dart';
+      // Result: something like "package:fab_flutter/_eval/src/foundation.dart"
+      final barrelUri = 'package:${posix.joinAll([
+            packageName,
+            relative(pluginOutputDir, from: 'lib'),
+            barrelFileName,
+          ])}';
+
+      final allTypeNames = [
+        ...lib.classes.map((c) => c.name),
+        ...lib.enums,
+      ];
+
+      for (final typeName in allTypeNames) {
+        final element = libElement.exportNamespace.get2(typeName);
+        if (element == null) continue;
+
+        // Skip generic types
+        if (element is InterfaceElement2 &&
+            element.typeParameters2.isNotEmpty) {
+          continue;
+        }
+
+        final actualUri = element.library2?.uri.toString();
+        if (actualUri == null) continue;
+
+        // Register minimal bridge declaration (so wrapType can find it)
+        final spec = BridgeTypeSpec(actualUri, typeName);
+        try {
+          if (element is EnumElement2) {
+            defineBridgeEnum(BridgeEnumDef(
+              BridgeTypeRef(spec),
+              values: [],
+              methods: {},
+              getters: {},
+              setters: {},
+              fields: {},
+            ));
+          } else {
+            defineBridgeClass(BridgeClassDef(
+              BridgeClassType(BridgeTypeRef(spec)),
+              constructors: {},
+              methods: {},
+              getters: {},
+              setters: {},
+              fields: {},
+              wrap: true,
+              bridge: false,
+            ));
+          }
+        } catch (_) {
+          // May already be registered from JSON manifests — skip
+        }
+
+        // Register exported lib mapping (so wrapType can find the import path)
+        final parsedUri = Uri.parse(actualUri);
+        final srcDirUri = parsedUri.path.contains('/')
+            ? '${parsedUri.scheme}:${posix.dirname(parsedUri.path)}'
+            : '${parsedUri.scheme}:${parsedUri.path}';
+        _exportedLibMappings.putIfAbsent(srcDirUri, () => barrelUri);
+      }
+
+      // Also register reexport mappings
+      for (final reUri in lib.reexports) {
+        final reParsed = Uri.parse(reUri);
+        final srcDirUri = reParsed.scheme == 'dart'
+            ? 'dart:${reParsed.path}'
+            : '${reParsed.scheme}:${posix.dirname(reParsed.path)}';
+        _exportedLibMappings.putIfAbsent(srcDirUri, () => barrelUri);
+      }
+    }
+  }
+
+  /// Resolve a named element from a library URI using the analyzer session.
+  ///
+  /// Returns the [InterfaceElement2] for classes/enums, or null if not found.
+  /// Requires that [_contextCollection] has been initialized (e.g. by calling
+  /// [preRegisterConfigTypes] or [parseFromConfig] first).
+  Future<InterfaceElement2?> resolveInterfaceElement(
+    String libraryUri,
+    String name,
+  ) async {
+    _contextCollection ??= AnalysisContextCollection(
+      includedPaths: includedPaths,
+      resourceProvider: Bindgen.resourceProvider,
+    );
+    final session = _contextCollection!.contexts.first.currentSession;
+    final libResult = await session.getLibraryByUri(libraryUri);
+    if (libResult is! LibraryElementResult) return null;
+    final element = libResult.element.exportNamespace.get2(name);
+    if (element is InterfaceElement2) return element;
+    return null;
   }
 
   /// Generate binding code for a class/enum/function from an external library,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:change_case/change_case.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bindgen/bindgen.dart';
+import 'package:dart_eval/src/eval/bindgen/dependency_resolver.dart';
 import 'package:dart_eval/src/eval/cli/bindgen_config.dart';
 import 'package:dart_eval/src/eval/cli/bindings.dart';
 import 'package:dart_eval/src/eval/cli/utils.dart';
@@ -104,6 +105,17 @@ Future<BindResult> bind({
   var singleResult = '';
   final boundFiles = <String>[];
 
+  // ── Pre-register config types so they can reference each other ──
+  if (config != null) {
+    final pluginOutputDir = config.output ?? outputDir ?? 'lib/_eval';
+    await bindgen.preRegisterConfigTypes(
+      config.libraries,
+      packageName: packageName,
+      pluginOutputDir: pluginOutputDir,
+      projectRootPath: projectRoot.path,
+    );
+  }
+
   // ── Config mode ──────────────────────────────────────────────────
   if (config != null) {
     // Plugin output is at the top-level config output dir
@@ -168,6 +180,112 @@ Future<BindResult> bind({
           boundFiles.add('$fnName (${lib.uri})');
           if (verbose) print('Bound $fnName from ${lib.uri}');
         }
+      }
+    }
+
+    // ── Phase 3: Dependency resolution ───────────────────────────────
+    if (config.resolveDependencies) {
+      // Collect all known type names (from config + SDK built-ins)
+      final knownTypes = <String>{
+        // SDK types with built-in wrappers
+        'int', 'double', 'num', 'bool', 'String', 'Object', 'List', 'Map',
+        'Set', 'Future', 'Stream', 'Iterable', 'Iterator',
+        // All config types
+        for (final lib in config.libraries) ...[
+          ...lib.classes.map((c) => c.name),
+          ...lib.enums,
+        ],
+        // Exclude list
+        ...config.resolveExclude,
+      };
+
+      // Collect dependencies from all generated classes
+      var allDeps = <TypeDependency>{};
+      for (final lib in config.libraries) {
+        for (final cls in lib.classes) {
+          final element =
+              await bindgen.resolveInterfaceElement(lib.uri, cls.name);
+          if (element == null) continue;
+          allDeps.addAll(collectDependencyTypes(
+            element,
+            knownTypes: knownTypes,
+            excludeTypes: config.resolveExclude.toSet(),
+          ));
+        }
+      }
+
+      // Generate bindings for discovered dependencies (up to resolveDepth)
+      var depth = 0;
+      while (allDeps.isNotEmpty && depth < config.resolveDepth) {
+        final currentBatch = allDeps.toList();
+        allDeps = <TypeDependency>{};
+
+        for (final dep in currentBatch) {
+          // Pre-register the dep type so further deps can find it
+          final spec = BridgeTypeSpec(dep.libraryUri, dep.name);
+          try {
+            if (dep.isEnum) {
+              bindgen.defineBridgeEnum(BridgeEnumDef(
+                BridgeTypeRef(spec),
+                values: [],
+                methods: {},
+                getters: {},
+                setters: {},
+                fields: {},
+              ));
+            } else {
+              bindgen.defineBridgeClass(BridgeClassDef(
+                BridgeClassType(BridgeTypeRef(spec)),
+                constructors: {},
+                methods: {},
+                getters: {},
+                setters: {},
+                fields: {},
+                wrap: true,
+                bridge: false,
+              ));
+            }
+          } catch (_) {
+            // May already be registered
+          }
+
+          // Generate binding
+          final outputPath = join(projectRoot.path, pluginOutputDir, 'src');
+          final output = await bindgen.parseFromConfig(
+            libraryUri: dep.libraryUri,
+            className: dep.name,
+            overrideLibrary: dep.libraryUri,
+            isBridge: false,
+            filePrefix: 'src',
+          );
+
+          if (output != null) {
+            _writeConfigOutput(
+                output, dep.name, outputPath, formatter, dep.libraryUri);
+            boundFiles.add('${dep.name} (${dep.libraryUri}) [auto-resolved]');
+            knownTypes.add(dep.name);
+            if (verbose) {
+              print('[resolve] Bound ${dep.name} from ${dep.libraryUri}');
+            }
+
+            // Collect next-level dependencies
+            final el = await bindgen.resolveInterfaceElement(
+                dep.libraryUri, dep.name);
+            if (el != null) {
+              allDeps.addAll(collectDependencyTypes(
+                el,
+                knownTypes: knownTypes,
+                excludeTypes: config.resolveExclude.toSet(),
+              ));
+            }
+          }
+        }
+        depth++;
+      }
+
+      if (verbose && allDeps.isNotEmpty) {
+        print('Warning: ${allDeps.length} dependencies remain unresolved '
+            'after $depth iteration(s) (max depth: ${config.resolveDepth}).');
       }
     }
 
