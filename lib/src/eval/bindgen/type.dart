@@ -136,8 +136,9 @@ String? wrapVar(BindgenContext ctx, DartType type, String expr,
       wrapType(ctx, type, expr, metadata: metadata, wrapList: wrapList);
 
   if (wrapped == null) {
-    if (ctx.unknownTypes.add(type.element3!.name3!)) {
-      print('Warning: type ${type.element3!.name3} is not bound — '
+    final typeName = type.element3?.name3 ?? type.getDisplayString();
+    if (ctx.unknownTypes.add(typeName)) {
+      print('Warning: type $typeName is not bound — '
           'member will be skipped');
     }
     return wrapVarSkipSentinel;

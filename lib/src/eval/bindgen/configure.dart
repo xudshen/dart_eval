@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/element/element2.dart';
 import 'package:dart_eval/src/eval/bindgen/context.dart';
+import 'package:dart_eval/src/eval/bindgen/type.dart';
 
 String bindConfigureForRuntime(BindgenContext ctx, ClassElement2 element,
         {bool isBridge = false}) =>
@@ -83,6 +84,7 @@ String staticMethodsForRuntime(BindgenContext ctx, InterfaceElement2 element,
           !e.isOperator &&
           !e.isPrivate &&
           !ctx.externMembers.contains(e.name3))
+      .where((e) => wrapVar(ctx, e.returnType, '_') != wrapVarSkipSentinel)
       .map((e) => staticMethodForRuntime(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }
@@ -109,6 +111,8 @@ String staticGettersForRuntime(BindgenContext ctx, InterfaceElement2 element,
           !ctx.externMembers.contains(e.name3) &&
           (e.nonSynthetic2 is! FieldElement2 ||
               !(e.nonSynthetic2 as FieldElement2).isEnumConstant))
+      .where(
+          (e) => wrapVar(ctx, e.returnType, '_') != wrapVarSkipSentinel)
       .map((e) => staticGetterForRuntime(ctx, element, e, isBridge: isBridge))
       .join('\n');
 }

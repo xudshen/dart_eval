@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:collection/collection.dart';
 import 'package:dart_eval/src/eval/bindgen/bridge.dart';
@@ -81,8 +82,21 @@ String argumentAccessor(
         final name = ftParam.name3 == null || ftParam.name3!.isEmpty
             ? 'arg$j'
             : ftParam.name3!;
-        paramBuffer
-            .write(wrapVar(ctx, ftParam.type, name, forCollection: true));
+        final wrapped =
+            wrapVar(ctx, ftParam.type, name, forCollection: true);
+        // For callback parameters flowing from Dart → eval, use $Object()
+        // as a generic fallback when the specific type has no binding.
+        if (wrapped == wrapVarSkipSentinel) {
+          ctx.imports.add('package:dart_eval/stdlib/core.dart');
+          if (ftParam.type.nullabilitySuffix == NullabilitySuffix.question) {
+            paramBuffer.write(
+                '$name == null ? const \$null() : \$Object($name)');
+          } else {
+            paramBuffer.write('\$Object($name)');
+          }
+        } else {
+          paramBuffer.write(wrapped);
+        }
         if (j < type.formalParameters.length - 1) {
           paramBuffer.write(', ');
         }

@@ -81,10 +81,16 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         final _${e.name3} = \$value.${e.name3};
         return $wrapped;
       ''';
-    }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) => '''
+    }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) {
+      // Check if the method's return type is bound — if not, the method
+      // was skipped in $methods() and __methodName won't exist.
+      final returnWrapped = wrapVar(ctx, e.returnType, 'result');
+      if (returnWrapped == wrapVarSkipSentinel) return '';
+      return '''
       case '${e.name3}':
         return __${resolveMethodOperator(e.displayName).name};
-      ''').join('\n')}\n}';
+      ''';
+    }).where((s) => s.isNotEmpty).join('\n')}\n}';
 }
 
 String $setProperty(BindgenContext ctx, InterfaceElement2 element) {
