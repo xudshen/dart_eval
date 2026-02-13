@@ -220,6 +220,24 @@ class Bindgen implements BridgeDeclarationRegistry {
     }
   }
 
+  /// Look up the exported library mapping for a type's source library URI.
+  ///
+  /// Walks up the directory path of [libraryUri] to find a matching entry in
+  /// [_exportedLibMappings]. Returns the barrel URI if found, null otherwise.
+  /// This mirrors the path-walk logic in [wrapType].
+  String? findExportedLibMapping(String libraryUri) {
+    final parsedUri = Uri.parse(libraryUri);
+    String current = parsedUri.path;
+    while (current != posix.dirname(current)) {
+      final key = '${parsedUri.scheme}:$current';
+      if (_exportedLibMappings.containsKey(key)) {
+        return _exportedLibMappings[key]!;
+      }
+      current = posix.dirname(current);
+    }
+    return null;
+  }
+
   /// Resolve a named element from a library URI using the analyzer session.
   ///
   /// Returns the [InterfaceElement2] for classes/enums, or null if not found.

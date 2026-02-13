@@ -215,13 +215,15 @@ Future<BindResult> bind({
       }
 
       // Generate bindings for discovered dependencies (up to resolveDepth)
+      final pluginPrefix = relative(pluginOutputDir, from: 'lib');
       var depth = 0;
       while (allDeps.isNotEmpty && depth < config.resolveDepth) {
         final currentBatch = allDeps.toList();
         allDeps = <TypeDependency>{};
 
+        // Pre-register ALL deps in this batch before generating any,
+        // so they can reference each other during code generation.
         for (final dep in currentBatch) {
-          // Pre-register the dep type so further deps can find it
           final spec = BridgeTypeSpec(dep.libraryUri, dep.name);
           try {
             if (dep.isEnum) {
@@ -249,20 +251,69 @@ Future<BindResult> bind({
             // May already be registered
           }
 
-          // Generate binding
-          final outputPath = join(projectRoot.path, pluginOutputDir, 'src');
+          // Ensure this dep's source directory has an exportedLibMapping
+          // so wrapType() can resolve the import path when other types
+          // reference it.
+          if (bindgen.findExportedLibMapping(dep.libraryUri) == null) {
+            final depUri = Uri.parse(dep.libraryUri);
+            final depSrcDir = depUri.path.contains('/')
+                ? posix.dirname(depUri.path)
+                : depUri.path;
+            final depSrcDirUri = '${depUri.scheme}:$depSrcDir';
+            final defaultBarrelUri = 'package:${posix.joinAll([
+              packageName,
+              pluginPrefix,
+              'src.dart',
+            ])}';
+            bindgen.addExportedLibraryMapping(
+                depSrcDirUri, defaultBarrelUri);
+          }
+        }
+
+        // Generate bindings for all deps in this batch
+        for (final dep in currentBatch) {
+          // Determine output directory: place auto-resolved types alongside
+          // config types from the same source directory so they're included
+          // in the correct barrel file.
+          final matchedBarrel =
+              bindgen.findExportedLibMapping(dep.libraryUri);
+
+          String outputPath;
+          String filePrefix;
+          if (matchedBarrel != null) {
+            // Derive eval directory from barrel URI.
+            // e.g. barrel "package:fab_flutter/_eval/src/widgets.dart"
+            //   → barrelRelPath "_eval/src/widgets.dart"
+            //   → evalDir "src/widgets"
+            final barrelParsed = Uri.parse(matchedBarrel);
+            final barrelRelPath = barrelParsed.path
+                .substring(barrelParsed.path.indexOf('/') + 1);
+            final evalDir = posix.withoutExtension(
+                posix.relative(barrelRelPath, from: pluginPrefix));
+            outputPath =
+                join(projectRoot.path, pluginOutputDir, evalDir);
+            filePrefix = evalDir;
+          } else {
+            outputPath =
+                join(projectRoot.path, pluginOutputDir, 'src');
+            filePrefix = 'src';
+          }
+
+          Directory(outputPath).createSync(recursive: true);
+
           final output = await bindgen.parseFromConfig(
             libraryUri: dep.libraryUri,
             className: dep.name,
             overrideLibrary: dep.libraryUri,
             isBridge: false,
-            filePrefix: 'src',
+            filePrefix: filePrefix,
           );
 
           if (output != null) {
             _writeConfigOutput(
                 output, dep.name, outputPath, formatter, dep.libraryUri);
-            boundFiles.add('${dep.name} (${dep.libraryUri}) [auto-resolved]');
+            boundFiles
+                .add('${dep.name} (${dep.libraryUri}) [auto-resolved]');
             knownTypes.add(dep.name);
             if (verbose) {
               print('[resolve] Bound ${dep.name} from ${dep.libraryUri}');
