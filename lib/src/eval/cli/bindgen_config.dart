@@ -33,12 +33,17 @@ class LibraryConfig {
   final List<String> enums;
   final List<String> functions;
 
+  /// Other library URIs that this library re-exports.
+  /// E.g., `package:flutter/material.dart` re-exports `package:flutter/widgets.dart`.
+  final List<String> reexports;
+
   LibraryConfig({
     required this.uri,
     this.output,
     this.classes = const [],
     this.enums = const [],
     this.functions = const [],
+    this.reexports = const [],
   });
 
   factory LibraryConfig.fromYaml(dynamic value) {
@@ -53,6 +58,8 @@ class LibraryConfig {
       enums: (map['enums'] as YamlList?)?.cast<String>().toList() ?? [],
       functions:
           (map['functions'] as YamlList?)?.cast<String>().toList() ?? [],
+      reexports:
+          (map['reexports'] as YamlList?)?.cast<String>().toList() ?? [],
     );
   }
 }

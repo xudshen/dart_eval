@@ -185,21 +185,21 @@ class Bindgen implements BridgeDeclarationRegistry {
       }
       registerClasses.add((
         file: registeredFile,
-        uri: overrideLibrary,
+        uri: actualUri,
         name: '$className${isBridge ? '\$bridge' : ''}',
       ));
       code = _generateInstance(ctx, element, isBridge: isBridge);
     } else if (element is EnumElement2) {
       registerEnums.add((
         file: registeredFile,
-        uri: overrideLibrary,
+        uri: actualUri,
         name: className,
       ));
       code = _generateEnum(ctx, element);
     } else if (element is TopLevelFunctionElement) {
       registerFunctions.add((
         file: registeredFile,
-        uri: overrideLibrary,
+        uri: actualUri,
         name: className,
       ));
       code = _generateFunction(ctx, element);
@@ -321,7 +321,7 @@ class \$${element.name3}Fn implements EvalCallable {
   }
 
   Future<String?> parse(io.File src, String filename, String uri, bool all,
-      {bool separateOutputDir = false}) async {
+      {bool separateOutputDir = false, String filePrefix = ''}) async {
     final resourceProvider = PhysicalResourceProvider.INSTANCE;
     if (_contextCollection == null) {
       _contextCollection = AnalysisContextCollection(
@@ -335,8 +335,13 @@ class \$${element.name3}Fn implements EvalCallable {
     final analysisContext = _contextCollection!.contextFor(filePath);
     final session = analysisContext.currentSession;
     final analysisResult = await session.getResolvedUnit(filePath);
+    final evalFilename = filename.replaceAll('.dart', '.eval.dart');
+    final registeredFile = filePrefix.isEmpty
+        ? evalFilename
+        : '$filePrefix/$evalFilename';
     final ctx = BindgenContext(filename, uri,
         all: all,
+        registeredFile: registeredFile,
         bridgeDeclarations: _bridgeDeclarations,
         exportedLibMappings: _exportedLibMappings);
 
@@ -488,7 +493,9 @@ class \$${element.name3}Fn implements EvalCallable {
     _collectExternMembers(ctx, element);
 
     registerClasses.add((
-      file: ctx.filename,
+      file: ctx.registeredFile.isEmpty
+          ? ctx.filename.replaceAll('.dart', '.eval.dart')
+          : ctx.registeredFile,
       uri: ctx.libOverrides[element.name3!] ?? ctx.uri,
       name: '${element.name3!}${isBridge ? '\$bridge' : ''}',
     ));
@@ -526,7 +533,9 @@ ${$setProperty(ctx, element)}
     ctx.externMembers.clear();
 
     registerEnums.add((
-      file: ctx.filename,
+      file: ctx.registeredFile.isEmpty
+          ? ctx.filename.replaceAll('.dart', '.eval.dart')
+          : ctx.registeredFile,
       uri: ctx.libOverrides[element.name3!] ?? ctx.uri,
       name: element.name3!,
     ));
@@ -542,7 +551,9 @@ ${$setProperty(ctx, element)}
     }
 
     registerFunctions.add((
-      file: ctx.filename,
+      file: ctx.registeredFile.isEmpty
+          ? ctx.filename.replaceAll('.dart', '.eval.dart')
+          : ctx.registeredFile,
       uri: ctx.libOverrides[element.name3!] ?? ctx.uri,
       name: element.name3!,
     ));
