@@ -92,5 +92,34 @@ libraries:
         throwsA(isA<FormatException>()),
       );
     });
+
+    group('resolve_dependencies config', () {
+      test('parses resolve_dependencies and resolve_depth', () {
+        final config = BindgenConfig.fromYaml('''
+output: lib/_eval
+resolve_dependencies: true
+resolve_depth: 3
+resolve_exclude:
+  - InteractiveInkFeatureFactory
+libraries:
+  - uri: dart:math
+    classes: [Random]
+''');
+        expect(config.resolveDependencies, isTrue);
+        expect(config.resolveDepth, 3);
+        expect(config.resolveExclude, contains('InteractiveInkFeatureFactory'));
+      });
+
+      test('resolve defaults to false with depth 2', () {
+        final config = BindgenConfig.fromYaml('''
+libraries:
+  - uri: dart:math
+    classes: [Random]
+''');
+        expect(config.resolveDependencies, isFalse);
+        expect(config.resolveDepth, 2);
+        expect(config.resolveExclude, isEmpty);
+      });
+    });
   });
 }

@@ -6,8 +6,17 @@ import 'package:yaml/yaml.dart';
 class BindgenConfig {
   final String? output;
   final List<LibraryConfig> libraries;
+  final bool resolveDependencies;
+  final int resolveDepth;
+  final List<String> resolveExclude;
 
-  BindgenConfig({this.output, required this.libraries});
+  BindgenConfig({
+    this.output,
+    required this.libraries,
+    this.resolveDependencies = false,
+    this.resolveDepth = 2,
+    this.resolveExclude = const [],
+  });
 
   factory BindgenConfig.fromYaml(String yamlString) {
     final doc = loadYaml(yamlString) as YamlMap;
@@ -18,6 +27,12 @@ class BindgenConfig {
     return BindgenConfig(
       output: doc['output'] as String?,
       libraries: libs.map((e) => LibraryConfig.fromYaml(e)).toList(),
+      resolveDependencies: doc['resolve_dependencies'] as bool? ?? false,
+      resolveDepth: doc['resolve_depth'] as int? ?? 2,
+      resolveExclude: (doc['resolve_exclude'] as YamlList?)
+              ?.cast<String>()
+              .toList() ??
+          [],
     );
   }
 
