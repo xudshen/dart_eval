@@ -684,15 +684,21 @@ Variable _declarationToVariable(
         TypeRef.lookupDeclaration(ctx, decOrBridge.sourceLib, decl);
     final DeferredOrOffset offset;
 
+    // The position key for constructors uses a trailing dot (e.g. "ClassName.").
+    // Avoid double-dot when name already ends with dot (e.g. from default
+    // constructor references like "B.").
+    final positionKey = name.endsWith('.') ? name : '$name.';
+
     if (ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]
-            ?.containsKey('$name.') ??
+            ?.containsKey(positionKey) ??
         false) {
       offset = DeferredOrOffset(
           file: decOrBridge.sourceLib,
           offset: ctx
-              .topLevelDeclarationPositions[decOrBridge.sourceLib]!['$name.']);
+              .topLevelDeclarationPositions[decOrBridge.sourceLib]![positionKey]);
     } else {
-      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: '$name.');
+      offset =
+          DeferredOrOffset(file: decOrBridge.sourceLib, name: positionKey);
     }
 
     return Variable(-1, CoreTypes.type.ref(ctx),
@@ -765,15 +771,18 @@ StaticDispatch? _declarationToStaticDispatch(
 
     final DeferredOrOffset offset;
 
+    final positionKey = name.endsWith('.') ? name : '$name.';
+
     if (ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]
-            ?.containsKey('$name.') ??
+            ?.containsKey(positionKey) ??
         false) {
       offset = DeferredOrOffset(
           file: decOrBridge.sourceLib,
           offset: ctx
-              .topLevelDeclarationPositions[decOrBridge.sourceLib]!['$name.']);
+              .topLevelDeclarationPositions[decOrBridge.sourceLib]![positionKey]);
     } else {
-      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: '$name.');
+      offset =
+          DeferredOrOffset(file: decOrBridge.sourceLib, name: positionKey);
     }
 
     final rt = AlwaysReturnType(

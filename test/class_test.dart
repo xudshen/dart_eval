@@ -631,6 +631,27 @@ void main() {
       );
     });
 
+    test('Implicit default constructor with inheritance', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class B {
+              int get value => 42;
+            }
+            class A extends B {}
+            int main() {
+              var a = A();
+              return a.value;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
+
     test('Assigning to default null field', () {
       final program = compiler.compile({
         'example': {
