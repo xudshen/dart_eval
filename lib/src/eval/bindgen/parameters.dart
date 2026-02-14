@@ -166,11 +166,21 @@ String argumentAccessor(
           // Don't skip the parameter — eval code may provide an explicit
           // value. Just omit the ?? fallback so the Dart constructor uses
           // its own default when args[idx] is null.
+          if (needsCast) {
+            final q = (param.isRequired ? '' : '?');
+            paramBuffer.write(' as ${type.element3!.name3}$q');
+            paramBuffer.write(')$q.cast${castTypeArgsSuffix(ctx, type)}()');
+          }
           return paramBuffer.toString();
         }
         // If default references a class not importable in the generated file
         // (e.g. CupertinoColors.systemBlue for a Color param), skip it.
         if (_isUnresolvableDefault(defaultCode, type)) {
+          if (needsCast) {
+            final q = (param.isRequired ? '' : '?');
+            paramBuffer.write(' as ${type.element3!.name3}$q');
+            paramBuffer.write(')$q.cast${castTypeArgsSuffix(ctx, type)}()');
+          }
           return paramBuffer.toString();
         }
         paramBuffer.write(' ?? $defaultCode');
