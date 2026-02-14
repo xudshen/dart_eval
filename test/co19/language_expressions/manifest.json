@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-02-14T18:50:29.727906",
+  "input_dir": "../../third_party/co19/Language/Expressions",
+  "output_file": "test/co19/language_expressions/generated_test.dart",
+  "stats": {
+    "total_files": 1949,
+    "included_by_filter": 793,
+    "transformed": 790,
+    "transform_failed": 3,
+    "excluded": 1107,
+    "skipped": 33,
+    "not_test": 16
+  },
+  "exclude_reasons": {
+    "compile-error": 1023,
+    "not a test file": 16,
+    "async*": 22,
+    "sync*": 34,
+    "dart:mirrors": 1,
+    "extension type": 31,
+    "yield": 26,
+    "deferred import": 2,
+    "dart:isolate": 1
+  }
+}
