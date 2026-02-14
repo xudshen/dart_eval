@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-02-14T20:53:22.079818",
+  "generated_at": "2026-02-14T23:22:02.773408",
+  "group": "co19 Language/Interfaces",
+  "subDir": "Language/Interfaces",
   "input_dir": "../../third_party/co19/Language/Interfaces",
-  "output_file": "test/co19/language_interfaces/generated_test.dart",
   "stats": {
     "total_files": 100,
     "included_by_filter": 22,
-    "transformed": 22,
+    "valid_entries": 22,
     "transform_failed": 0,
     "excluded": 78,
     "skipped": 0,
@@ -14,5 +15,29 @@
   "exclude_reasons": {
     "compile-error": 71,
     "interface class": 7
-  }
+  },
+  "entries": [
+    "Language/Interfaces/Combined_Member_Signature/combined_member_signature_A02_t02.dart",
+    "Language/Interfaces/Combined_Member_Signature/combined_member_signature_A03_t05.dart",
+    "Language/Interfaces/Combined_Member_Signature/combined_member_signature_A03_t06.dart",
+    "Language/Interfaces/Superinterfaces/Correct_Member_Overrides/correct_member_overrides_A03_t16.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/inheritance_t05.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/inheritance_t06.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/inheritance_t08.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/inheritance_t13.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/inheritance_t14.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/not_overriden_members_t01.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/not_overriden_members_t03.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_t01.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_t02.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_t03.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_t04.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_type_t01.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_type_t02.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_type_t09.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_type_t10.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_getters_type_t11.dart",
+    "Language/Interfaces/Superinterfaces/Inheritance_and_Overriding/same_name_members_t02.dart",
+    "Language/Interfaces/Superinterfaces/definition_t01.dart"
+  ]
 }

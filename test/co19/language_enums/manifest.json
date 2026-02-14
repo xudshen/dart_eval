@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-02-14T20:53:15.222194",
+  "generated_at": "2026-02-14T23:22:01.786415",
+  "group": "co19 Language/Enums",
+  "subDir": "Language/Enums",
   "input_dir": "../../third_party/co19/Language/Enums",
-  "output_file": "test/co19/language_enums/generated_test.dart",
   "stats": {
     "total_files": 31,
     "included_by_filter": 9,
-    "transformed": 9,
+    "valid_entries": 9,
     "transform_failed": 0,
     "excluded": 22,
     "skipped": 0,
@@ -13,5 +14,16 @@
   },
   "exclude_reasons": {
     "compile-error": 22
-  }
+  },
+  "entries": [
+    "Language/Enums/declaration_equivalent_t01.dart",
+    "Language/Enums/declaration_equivalent_t02.dart",
+    "Language/Enums/declaration_equivalent_t04.dart",
+    "Language/Enums/declaration_equivalent_t06.dart",
+    "Language/Enums/declaration_equivalent_t07.dart",
+    "Language/Enums/declaration_equivalent_t09.dart",
+    "Language/Enums/syntax_t01.dart",
+    "Language/Enums/syntax_t03.dart",
+    "Language/Enums/syntax_t10.dart"
+  ]
 }

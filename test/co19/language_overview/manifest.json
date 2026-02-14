@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-02-14T20:53:22.871311",
+  "generated_at": "2026-02-14T23:22:03.045807",
+  "group": "co19 Language/Overview",
+  "subDir": "Language/Overview",
   "input_dir": "../../third_party/co19/Language/Overview",
-  "output_file": "test/co19/language_overview/generated_test.dart",
   "stats": {
     "total_files": 88,
     "included_by_filter": 37,
-    "transformed": 33,
+    "valid_entries": 33,
     "transform_failed": 4,
     "excluded": 49,
     "skipped": 0,
@@ -14,5 +15,40 @@
   "exclude_reasons": {
     "compile-error": 49,
     "not a test file": 2
-  }
+  },
+  "entries": [
+    "Language/Overview/Privacy/private_and_public_t07.dart",
+    "Language/Overview/Privacy/private_and_public_t11.dart",
+    "Language/Overview/Privacy/private_and_public_t13.dart",
+    "Language/Overview/Privacy/private_and_public_t14.dart",
+    "Language/Overview/Privacy/private_and_public_t15.dart",
+    "Language/Overview/Privacy/private_and_public_t17.dart",
+    "Language/Overview/Privacy/private_and_public_t18.dart",
+    "Language/Overview/Privacy/private_and_public_t21.dart",
+    "Language/Overview/Scoping/conflicting_names_t28.dart",
+    "Language/Overview/Scoping/conflicting_names_t29.dart",
+    "Language/Overview/Scoping/conflicting_names_t30.dart",
+    "Language/Overview/Scoping/hiding_declaration_t01.dart",
+    "Language/Overview/Scoping/hiding_declaration_t02.dart",
+    "Language/Overview/Scoping/hiding_declaration_t03.dart",
+    "Language/Overview/Scoping/hiding_declaration_t04.dart",
+    "Language/Overview/Scoping/hiding_declaration_t07.dart",
+    "Language/Overview/Scoping/hiding_declaration_t08.dart",
+    "Language/Overview/Scoping/hiding_declaration_t11.dart",
+    "Language/Overview/Scoping/hiding_declaration_t12.dart",
+    "Language/Overview/Scoping/hiding_declaration_t13.dart",
+    "Language/Overview/Scoping/hiding_declaration_t14.dart",
+    "Language/Overview/Scoping/hiding_declaration_t15.dart",
+    "Language/Overview/Scoping/hiding_declaration_t16.dart",
+    "Language/Overview/Scoping/hiding_declaration_t19.dart",
+    "Language/Overview/Scoping/hiding_declaration_t22.dart",
+    "Language/Overview/Scoping/hiding_declaration_t25.dart",
+    "Language/Overview/Scoping/hiding_declaration_t29.dart",
+    "Language/Overview/Scoping/hiding_declaration_t32.dart",
+    "Language/Overview/Scoping/labels_t01.dart",
+    "Language/Overview/Scoping/names_introducing_t01.dart",
+    "Language/Overview/Scoping/names_introducing_t03.dart",
+    "Language/Overview/runtime_type_t01.dart",
+    "Language/Overview/runtime_type_t02.dart"
+  ]
 }

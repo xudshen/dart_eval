@@ -1,3 +1,6 @@
 tags:
   audit:
     skip: "Known dart_eval bugs. Run: dart test -t audit --run-skipped"
+  co19:
+    # co19 conformance tests — run explicitly: dart test -t co19
+    # Exclude from default runs: dart test --exclude-tags co19
