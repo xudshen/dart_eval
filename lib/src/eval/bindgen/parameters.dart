@@ -163,16 +163,14 @@ String argumentAccessor(
         // parameter entirely — the Dart constructor will use its own default.
         // Private members are inaccessible from the generated wrapper file.
         if (_isPrivateDefault(defaultCode)) {
-          // For named params with non-nullable needsCast types (Map/List/Set),
-          // skip entirely — the nullable cast can't satisfy the non-nullable
-          // target, so let Dart use its own default.
-          if (needsCast && param.isNamed &&
+          // For non-nullable named params, skip entirely — passing null
+          // would violate the type constraint, and we can't resolve the
+          // private default. Let Dart use its own default.
+          if (param.isNamed &&
               type.nullabilitySuffix != NullabilitySuffix.question) {
             return '';
           }
-          // Don't skip the parameter — eval code may provide an explicit
-          // value. Just omit the ?? fallback so the Dart constructor uses
-          // its own default when args[idx] is null.
+          // For nullable params, emit without fallback — null is valid.
           if (needsCast) {
             final q = (param.isRequired ? '' : '?');
             paramBuffer.write(' as ${type.element3!.name3}$q');
@@ -183,7 +181,7 @@ String argumentAccessor(
         // If default references a class not importable in the generated file
         // (e.g. CupertinoColors.systemBlue for a Color param), skip it.
         if (_isUnresolvableDefault(defaultCode, type)) {
-          if (needsCast && param.isNamed &&
+          if (param.isNamed &&
               type.nullabilitySuffix != NullabilitySuffix.question) {
             return '';
           }
