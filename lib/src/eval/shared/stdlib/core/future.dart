@@ -11,6 +11,8 @@ class $Future<T> implements Future<T>, $Instance {
   static void configureForRuntime(Runtime runtime) {
     runtime.registerBridgeFunc(
         'dart:core', 'Future.delayed', const _$Future_delayed().call);
+    runtime.registerBridgeFunc(
+        'dart:core', 'Future.value', const _$Future_value().call);
   }
 
   static const $declaration = BridgeClassDef(
@@ -21,6 +23,16 @@ class $Future<T> implements Future<T>, $Instance {
             params: [
               BridgeParameter(
                   'duration', BridgeTypeAnnotation($Duration.$type), false)
+            ],
+            namedParams: [])),
+        'value': BridgeConstructorDef(BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.future)),
+            params: [
+              BridgeParameter(
+                  'value',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic),
+                      nullable: true),
+                  true)
             ],
             namedParams: []))
       },
@@ -104,5 +116,15 @@ class _$Future_delayed implements EvalCallable {
   @override
   $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
     return $Future.wrap(Future.delayed(args[0]!.$value));
+  }
+}
+
+class _$Future_value implements EvalCallable {
+  const _$Future_value();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final value = args.isNotEmpty ? args[0]?.$reified : null;
+    return $Future.wrap(Future.value(value));
   }
 }

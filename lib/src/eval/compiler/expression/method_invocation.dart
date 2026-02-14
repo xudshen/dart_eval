@@ -155,6 +155,33 @@ Variable compileMethodInvocation(CompilerContext ctx, MethodInvocation e,
     } else if (dec is ConstructorDeclaration) {
       fpl = dec.parameters.parameters;
       isConstructor = true;
+    } else if (dec is ClassTypeAlias) {
+      // ClassTypeAlias (class C = A with B;) has implicit constructors
+      // forwarded from the superclass. Resolve the superclass constructor.
+      final superName = dec.superclass.name2.lexeme;
+      final superDec0 = ctx.topLevelDeclarationsMap[dec0.sourceLib]?[superName];
+      if (superDec0 != null && !superDec0.isBridge) {
+        final superDecl = superDec0.declaration;
+        if (superDecl is ClassDeclaration) {
+          final ctor = superDecl.members
+              .whereType<ConstructorDeclaration>()
+              .where((c) =>
+                  c.name == null ||
+                  c.name!.lexeme == e.methodName.name ||
+                  (c.name == null && e.methodName.name == superName))
+              .firstOrNull;
+          if (ctor != null) {
+            fpl = ctor.parameters.parameters;
+          } else {
+            fpl = <FormalParameter>[];
+          }
+        } else {
+          fpl = <FormalParameter>[];
+        }
+      } else {
+        fpl = <FormalParameter>[];
+      }
+      isConstructor = true;
     } else {
       throw CompileError('Invalid declaration type ${dec.runtimeType}');
     }
