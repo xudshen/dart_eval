@@ -495,5 +495,40 @@ void main() {
 
       expect(runtime.executeLib('package:example/main.dart', 'main'), 3);
     });
+
+    test('Top-level function without return type annotation', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            foo(p) => p * 2;
+            int main() {
+              return foo(21);
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
+
+    test('Top-level function reference as value', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int apply(int Function(int) f, int x) => f(x);
+            add1(x) => x + 1;
+            int main() {
+              return apply(add1, 41);
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
   });
 }

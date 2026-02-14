@@ -712,9 +712,13 @@ Variable _declarationToVariable(
         TypeRef.fromAnnotation(ctx, decOrBridge.sourceLib, decl.returnType!);
     nullable = decl.returnType!.question != null;
     ctx.temporaryTypes[ctx.library]?.clear();
-  } else {
+  } else if (decl.parent is ClassDeclaration) {
     returnType = TypeRef.lookupDeclaration(
         ctx, decOrBridge.sourceLib, decl.parent as ClassDeclaration);
+  } else {
+    // Top-level function without return type annotation — treat as dynamic
+    returnType = CoreTypes.dynamic.ref(ctx);
+    nullable = true;
   }
 
   final DeferredOrOffset offset;
@@ -784,9 +788,13 @@ StaticDispatch? _declarationToStaticDispatch(
     returnType =
         TypeRef.fromAnnotation(ctx, decOrBridge.sourceLib, decl.returnType!);
     nullable = decl.returnType!.question != null;
-  } else {
+  } else if (decl.parent is ClassDeclaration) {
     returnType = TypeRef.lookupDeclaration(
         ctx, decOrBridge.sourceLib, decl.parent as ClassDeclaration);
+  } else {
+    // Top-level function without return type annotation — treat as dynamic
+    returnType = CoreTypes.dynamic.ref(ctx);
+    nullable = true;
   }
 
   final DeferredOrOffset offset;
