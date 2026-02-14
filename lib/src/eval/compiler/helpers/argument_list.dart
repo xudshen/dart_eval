@@ -82,6 +82,8 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentList(
       } else if (param is SuperFormalParameter) {
         paramType =
             resolveSuperFormalType(ctx, decLibrary, param, parameterHost);
+      } else if (param is FunctionTypedFormalParameter) {
+        paramType = CoreTypes.function.ref(ctx);
       } else if (param is DefaultFormalParameter) {
         final p = param.parameter;
         typeAnnotation = p is SimpleFormalParameter ? p.type : null;
@@ -133,6 +135,8 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentList(
           _resolveFieldFormalType(ctx, decLibrary, param, parameterHost);
     } else if (param is SuperFormalParameter) {
       paramType = resolveSuperFormalType(ctx, decLibrary, param, parameterHost);
+    } else if (param is FunctionTypedFormalParameter) {
+      paramType = CoreTypes.function.ref(ctx);
     } else {
       throw CompileError('Unknown formal type ${param.runtimeType}');
     }

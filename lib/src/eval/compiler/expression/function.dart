@@ -64,17 +64,22 @@ Variable compileFunctionExpression(FunctionExpression e, CompilerContext ctx,
     final p = param.parameter;
     Variable vRep;
 
-    p as SimpleFormalParameter;
-    var type = CoreTypes.dynamic.ref(ctx);
-    if (p.type != null) {
-      type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
-    } else if (i < inorderBoundParams.length) {
-      final fType = inorderBoundParams[i].type;
-      if (fType.type != null) {
-        type = fType.type!;
+    if (p is FunctionTypedFormalParameter) {
+      final type = CoreTypes.function.ref(ctx);
+      vRep = Variable(i + 1, type.copyWith(boxed: true))..name = p.name.lexeme;
+    } else {
+      p as SimpleFormalParameter;
+      var type = CoreTypes.dynamic.ref(ctx);
+      if (p.type != null) {
+        type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
+      } else if (i < inorderBoundParams.length) {
+        final fType = inorderBoundParams[i].type;
+        if (fType.type != null) {
+          type = fType.type!;
+        }
       }
+      vRep = Variable(i + 1, type.copyWith(boxed: true))..name = p.name!.lexeme;
     }
-    vRep = Variable(i + 1, type.copyWith(boxed: true))..name = p.name!.lexeme;
 
     ctx.setLocal(vRep.name!, vRep);
 

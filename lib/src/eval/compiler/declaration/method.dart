@@ -37,16 +37,20 @@ int compileMethodDeclaration(MethodDeclaration d, CompilerContext ctx,
   for (final param in resolvedParams) {
     final p = param.parameter;
 
-    p as SimpleFormalParameter;
-    var type = CoreTypes.dynamic.ref(ctx);
-    if (p.type != null) {
-      // Method args are always boxed to allow for bridge interop to have a
-      // consistent interface
-      type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!)
-          .copyWith(boxed: true);
+    if (p is FunctionTypedFormalParameter) {
+      final type = CoreTypes.function.ref(ctx).copyWith(boxed: true);
+      ctx.setLocal(p.name.lexeme, Variable(i, type));
+    } else {
+      p as SimpleFormalParameter;
+      var type = CoreTypes.dynamic.ref(ctx);
+      if (p.type != null) {
+        // Method args are always boxed to allow for bridge interop to have a
+        // consistent interface
+        type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!)
+            .copyWith(boxed: true);
+      }
+      ctx.setLocal(p.name!.lexeme, Variable(i, type));
     }
-
-    ctx.setLocal(p.name!.lexeme, Variable(i, type));
 
     i++;
   }

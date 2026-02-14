@@ -57,14 +57,20 @@ void compileFunctionDeclaration(FunctionDeclaration d, CompilerContext ctx) {
     final p = param.parameter;
     Variable vRep;
 
-    p as SimpleFormalParameter;
-    var type = CoreTypes.dynamic.ref(ctx);
-    if (p.type != null) {
-      type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
+    if (p is FunctionTypedFormalParameter) {
+      final type = CoreTypes.function.ref(ctx);
+      vRep = Variable(i, type.copyWith(boxed: true))
+        ..name = p.name.lexeme;
+    } else {
+      p as SimpleFormalParameter;
+      var type = CoreTypes.dynamic.ref(ctx);
+      if (p.type != null) {
+        type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
+      }
+      vRep = Variable(
+          i, type.copyWith(boxed: !type.isUnboxedAcrossFunctionBoundaries))
+        ..name = p.name!.lexeme;
     }
-    vRep = Variable(
-        i, type.copyWith(boxed: !type.isUnboxedAcrossFunctionBoundaries))
-      ..name = p.name!.lexeme;
 
     ctx.setLocal(vRep.name!, vRep);
 

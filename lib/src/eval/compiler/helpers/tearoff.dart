@@ -85,15 +85,22 @@ extension TearOff on Variable {
     for (final param in resolvedParams) {
       final p = param.parameter;
       Variable vRep;
+      TypeRef paramType;
 
-      p as SimpleFormalParameter;
-      var type = CoreTypes.dynamic.ref(ctx);
-      if (p.type != null) {
-        type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
+      if (p is FunctionTypedFormalParameter) {
+        paramType = CoreTypes.function.ref(ctx);
+        vRep = Variable(i, paramType.copyWith(boxed: true));
+        vRep = ctx.setLocal(p.name.lexeme, vRep);
+      } else {
+        p as SimpleFormalParameter;
+        paramType = CoreTypes.dynamic.ref(ctx);
+        if (p.type != null) {
+          paramType = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
+        }
+        vRep = Variable(i, paramType.copyWith(boxed: true));
+        vRep = ctx.setLocal(p.name!.lexeme, vRep);
       }
-      vRep = Variable(i, type.copyWith(boxed: true));
-      vRep = ctx.setLocal(p.name!.lexeme, vRep);
-      if (type.isUnboxedAcrossFunctionBoundaries && dec is! MethodDeclaration) {
+      if (paramType.isUnboxedAcrossFunctionBoundaries && dec is! MethodDeclaration) {
         vRep = vRep.unboxIfNeeded(ctx);
       }
 

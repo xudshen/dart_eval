@@ -677,5 +677,50 @@ void main() {
       final result = runtime.executeLib('package:example/main.dart', 'main');
       expect(result, 42);
     });
+    test('Typedef as superclass', () {
+      final program = compiler.compile({
+        'example': {
+          'main.dart': '''
+            class A {
+              int get value => 42;
+            }
+
+            typedef B = A;
+
+            class C extends B {}
+
+            int main() {
+              final c = C();
+              return c.value;
+            }
+          '''
+        }
+      });
+
+      final runtime = Runtime.ofProgram(program);
+      final result = runtime.executeLib('package:example/main.dart', 'main');
+      expect(result, 42);
+    });
+
+    test('Redirecting factory constructor', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class A {
+              final int value;
+              A(this.value);
+              factory A.create(int v) = A;
+            }
+
+            int main() {
+              final a = A.create(42);
+              return a.value;
+            }
+          '''
+        }
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 42);
+    });
   });
 }

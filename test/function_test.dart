@@ -584,6 +584,28 @@ void main() {
       );
     });
 
+    test('Function-typed formal parameter compiles', () {
+      // Verifies that function-typed formal parameters (e.g. `int fn(int x)`)
+      // don't crash the compiler with FunctionTypedFormalParameterImpl cast error
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void run(void fn(String msg)) {
+              fn('hello');
+            }
+
+            void main() {
+              run((msg) { print(msg); });
+            }
+          '''
+        }
+      });
+      expect(
+        () => runtime.executeLib('package:example/main.dart', 'main'),
+        prints('hello\n'),
+      );
+    });
+
     test('Labeled statement', () {
       final runtime = compiler.compileWriteAndLoad({
         'example': {

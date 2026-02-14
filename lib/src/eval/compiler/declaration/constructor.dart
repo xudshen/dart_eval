@@ -110,6 +110,9 @@ void compileConstructorDeclaration(
           .boxIfNeeded(ctx)
         ..name = p.name.lexeme;
       superParams.add(p.name.lexeme);
+    } else if (p is FunctionTypedFormalParameter) {
+      final type = CoreTypes.function.ref(ctx);
+      vrep = Variable(i, type.copyWith(boxed: true))..name = p.name.lexeme;
     } else {
       p as SimpleFormalParameter;
       var type = CoreTypes.dynamic.ref(ctx);
@@ -148,6 +151,42 @@ void compileConstructorDeclaration(
       stInfo = doReturn(ctx, AlwaysReturnType(clsType, false), V,
           isAsync: b.isAsynchronous);
       ctx.endAllocScope();
+    } else if (b is EmptyFunctionBody && d.redirectedConstructor != null) {
+      // Redirecting factory constructor: factory A.create(int v) = A;
+      final redirectTarget = d.redirectedConstructor!;
+      final targetTypeName = redirectTarget.type.name2.lexeme;
+      final targetCtorName = redirectTarget.name?.name ?? '';
+
+      final targetPrefix = redirectTarget.type.importPrefix;
+      final resolvedName = targetPrefix != null
+          ? targetPrefix.name.lexeme
+          : targetTypeName;
+      final $resolved = IdentifierReference(null, resolvedName).getValue(ctx);
+      final targetType = $resolved.concreteTypes.first;
+      final targetCtorFullName = targetPrefix != null
+          ? '$targetTypeName.$targetCtorName'
+          : targetCtorName;
+
+      // Forward all factory parameters to the target constructor
+      for (final param in resolvedParams) {
+        final p = param.parameter;
+        final name = p is FieldFormalParameter
+            ? p.name.lexeme
+            : (p as SimpleFormalParameter).name!.lexeme;
+        final local = ctx.lookupLocal(name)!;
+        ctx.pushOp(PushArg.make(local.scopeFrameOffset), PushArg.LEN);
+      }
+
+      // Call target constructor
+      final offset = DeferredOrOffset.lookupStatic(
+          ctx, targetType.file, targetType.name, targetCtorFullName);
+      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
+      if (offset.offset == null) {
+        ctx.offsetTracker.setOffset(loc, offset);
+      }
+      ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+      final V = Variable.alloc(ctx, clsType);
+      stInfo = doReturn(ctx, AlwaysReturnType(clsType, false), V);
     } else {
       throw CompileError('Unknown function body type ${b.runtimeType}', d);
     }
@@ -215,20 +254,21 @@ void compileConstructorDeclaration(
       $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
     } else {
       final extendsType = TypeRef.lookupDeclaration(
-          ctx, ctx.library, extendsDecl.declaration as ClassDeclaration,
+          ctx, ctx.library, extendsDecl.declaration as NamedCompilationUnitMember,
           prefix: prefix?.name.lexeme);
+      final superLib = extendsType.file;
 
       AlwaysReturnType? mReturnType;
 
       if ($superInitializer != null) {
         final constructor0 = ctx.topLevelDeclarationsMap[
-            extendsDecl.sourceLib]!['${extendsType.name}.$constructorName']!;
+            superLib]!['${extendsType.name}.$constructorName']!;
         final constructor = constructor0.declaration as ConstructorDeclaration;
 
         final argsPair = compileArgumentList(
             ctx,
             $superInitializer.argumentList,
-            extendsDecl.sourceLib,
+            superLib,
             constructor.parameters.parameters,
             constructor,
             superParams: superParams,
@@ -242,7 +282,7 @@ void compileConstructorDeclaration(
       } else if (superParams.isNotEmpty) {
         // If there are super parameters, compile without an argument list
         final constructor0 = ctx.topLevelDeclarationsMap[
-            extendsDecl.sourceLib]!['${extendsType.name}.$constructorName']!;
+            superLib]!['${extendsType.name}.$constructorName']!;
         final constructor = constructor0.declaration as ConstructorDeclaration;
         final argsPair = compileSuperParams(
             ctx, constructor.parameters.parameters, constructor,
@@ -427,7 +467,7 @@ void compileDefaultConstructor(CompilerContext ctx,
       $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
     } else {
       final extendsType = TypeRef.lookupDeclaration(
-          ctx, ctx.library, extendsDecl.declaration as ClassDeclaration,
+          ctx, ctx.library, extendsDecl.declaration as NamedCompilationUnitMember,
           prefix: prefix?.name.lexeme);
 
       AlwaysReturnType? mReturnType;
