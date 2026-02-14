@@ -163,12 +163,15 @@ String argumentAccessor(
         // parameter entirely — the Dart constructor will use its own default.
         // Private members are inaccessible from the generated wrapper file.
         if (_isPrivateDefault(defaultCode)) {
-          return '';
+          // Don't skip the parameter — eval code may provide an explicit
+          // value. Just omit the ?? fallback so the Dart constructor uses
+          // its own default when args[idx] is null.
+          return paramBuffer.toString();
         }
         // If default references a class not importable in the generated file
         // (e.g. CupertinoColors.systemBlue for a Color param), skip it.
         if (_isUnresolvableDefault(defaultCode, type)) {
-          return '';
+          return paramBuffer.toString();
         }
         paramBuffer.write(' ?? $defaultCode');
         // Ensure the library defining the parameter's type is imported,
