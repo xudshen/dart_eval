@@ -79,7 +79,7 @@ void _compileDeclarations(
         if (declaration is ConstructorDeclaration ||
             declaration is MethodDeclaration ||
             declaration is VariableDeclaration ||
-            declaration is TypeAlias) {
+            (declaration is TypeAlias && declaration is! ClassTypeAlias)) {
           return;
         }
         ctx.library = key;

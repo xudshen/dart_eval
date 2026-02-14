@@ -53,7 +53,8 @@ StatementInfo doReturn(
 
     final expected = expectedReturnType.type ?? CoreTypes.dynamic.ref(ctx);
     var value0 = value;
-    if (!value0.type.isAssignableTo(ctx, expected)) {
+    if (!value0.type.isAssignableTo(ctx, expected) &&
+        expected != CoreTypes.voidType.ref(ctx)) {
       throw CompileError('Cannot return ${value0.type} (expected: $expected)');
     }
     if (expected.isUnboxedAcrossFunctionBoundaries &&

@@ -100,11 +100,19 @@ Pair<TypeRef, DeclarationOrBridge>? resolveInstanceDeclaration(
   final $dec = $classDec.declaration!;
   final $withClause = $dec is ClassDeclaration
       ? $dec.withClause
-      : ($dec is EnumDeclaration ? $dec.withClause : null);
+      : $dec is EnumDeclaration
+          ? $dec.withClause
+          : $dec is ClassTypeAlias
+              ? $dec.withClause
+              : null;
+  // ClassTypeAlias has .superclass (NamedType), ClassDeclaration has .extendsClause
   final $extendsClause = $dec is ClassDeclaration ? $dec.extendsClause : null;
+  final $superclassType =
+      $dec is ClassTypeAlias ? $dec.superclass : $extendsClause?.superclass;
   if ($withClause != null) {
     for (final $mixin in $withClause.mixinTypes) {
-      final mixinType = ctx.visibleTypes[library]![$mixin.name2.stringValue!]!;
+      final mixinType = ctx.visibleTypes[library]?[$mixin.name2.lexeme];
+      if (mixinType == null) continue;
       final result =
           resolveInstanceDeclaration(ctx, mixinType.file, mixinType.name, name);
       if (result != null) {
@@ -112,13 +120,15 @@ Pair<TypeRef, DeclarationOrBridge>? resolveInstanceDeclaration(
       }
     }
   }
-  if ($extendsClause != null) {
-    final prefix = $extendsClause.superclass.importPrefix;
-    final extendsType = ctx.visibleTypes[library]![
+  if ($superclassType != null) {
+    final prefix = $superclassType.importPrefix;
+    final extendsType = ctx.visibleTypes[library]?[
         '${prefix != null ? '${prefix.name.value()}.' : ''}'
-            '${$extendsClause.superclass.name2.value()}']!;
-    return resolveInstanceDeclaration(
-        ctx, extendsType.file, extendsType.name, name);
+            '${$superclassType.name2.value()}'];
+    if (extendsType != null) {
+      return resolveInstanceDeclaration(
+          ctx, extendsType.file, extendsType.name, name);
+    }
   } else {
     final $type = ctx.visibleTypes[library]![$class]!;
     final objectType = CoreTypes.object.ref(ctx);

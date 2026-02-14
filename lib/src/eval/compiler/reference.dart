@@ -123,7 +123,7 @@ class IdentifierReference implements Reference {
         final type =
             ctx.topLevelVariableInferredTypes[classType.file]![fqName]!;
         final gIndex = ctx.topLevelGlobalIndices[classType.file]![fqName]!;
-        if (!value.type.isAssignableTo(ctx, type)) {
+        if (!value.type.resolveTypeChain(ctx).isAssignableTo(ctx, type)) {
           throw CompileError(
               'Cannot assign value of type ${value.type} to field "$name" of type $type',
               source);

@@ -436,9 +436,15 @@ void compileDefaultConstructor(CompilerContext ctx,
   final fieldIndices = _getFieldIndices(fields);
   final fieldIdx = fieldIndices.length;
 
-  final $extends = parent is ClassDeclaration
-      ? parent.extendsClause
-      : null;
+  // ClassTypeAlias has .superclass directly; ClassDeclaration via .extendsClause
+  final NamedType? superclassType;
+  if (parent is ClassDeclaration) {
+    superclassType = parent.extendsClause?.superclass;
+  } else if (parent is ClassTypeAlias) {
+    superclassType = parent.superclass;
+  } else {
+    superclassType = null;
+  }
   Variable $super;
   DeclarationOrPrefix? extendsWhat;
   DeclarationOrBridge? extendsDecl;
@@ -448,19 +454,19 @@ void compileDefaultConstructor(CompilerContext ctx,
 
   final constructorName = '';
 
-  if ($extends == null) {
+  if (superclassType == null) {
     $super = BuiltinValue().push(ctx);
   } else {
-    final prefix = $extends.superclass.importPrefix;
-    final clsName = $extends.superclass.name2.lexeme;
+    final prefix = superclassType.importPrefix;
+    final clsName = superclassType.name2.lexeme;
     extendsWhat = (prefix != null
             ? ctx.visibleDeclarations[ctx.library]![prefix.name.value()]
             : ctx.visibleDeclarations[ctx.library]![clsName]) ??
-        (throw CompileError('Cannot find superclass $clsName', $extends));
+        (throw CompileError('Cannot find superclass $clsName', superclassType));
 
     extendsDecl = extendsWhat.declaration ??
         extendsWhat.children?[clsName] ??
-        (throw CompileError('Cannot find superclass $clsName', $extends));
+        (throw CompileError('Cannot find superclass $clsName', superclassType));
 
     if (extendsDecl.isBridge) {
       ctx.pushOp(PushBridgeSuperShim.make(), PushBridgeSuperShim.length);
@@ -512,18 +518,18 @@ void compileDefaultConstructor(CompilerContext ctx,
       instOffset,
       parent is EnumDeclaration ? 2 : 0);
 
-  if ($extends != null && extendsDecl!.isBridge) {
+  if (superclassType != null && extendsDecl!.isBridge) {
     final bridge = extendsDecl.bridge! as BridgeClassDef;
 
     if (!bridge.bridge) {
       throw CompileError(
-          'Bridge class ${$extends.superclass} is a wrapper, not a bridge, so you can\'t extend it');
+          'Bridge class ${superclassType} is a wrapper, not a bridge, so you can\'t extend it');
     }
 
     final op = BridgeInstantiate.make(
         instOffset,
         ctx.bridgeStaticFunctionIndices[extendsDecl.sourceLib]![
-            '${$extends.superclass.name2.lexeme}.$constructorName']!);
+            '${superclassType.name2.lexeme}.$constructorName']!);
     ctx.pushOp(op, BridgeInstantiate.len(op));
     final bridgeInst = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
 

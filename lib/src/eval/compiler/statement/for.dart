@@ -53,7 +53,7 @@ StatementInfo compileForStatement(
                 : TypeRef.fromAnnotation(
                     ctx, ctx.library, parts.loopVariable.type!);
             if (parts.loopVariable.type != null &&
-                !elementType.isAssignableTo(ctx, declaredType)) {
+                !elementType.resolveTypeChain(ctx).isAssignableTo(ctx, declaredType)) {
               throw CompileError(
                   'Cannot assign $elementType to ${parts.loopVariable.type}',
                   parts,
@@ -76,7 +76,7 @@ StatementInfo compileForStatement(
           } else if (parts is ForEachPartsWithIdentifier) {
             loopVariable = compileExpressionAsReference(parts.identifier, ctx);
             final type = loopVariable.resolveType(ctx);
-            if (!elementType.isAssignableTo(ctx, type)) {
+            if (!elementType.resolveTypeChain(ctx).isAssignableTo(ctx, type)) {
               throw CompileError('Cannot assign $elementType to $type', parts,
                   ctx.library, ctx);
             }

@@ -37,7 +37,7 @@ List<TypeRef> compileForElementForList(
         initialization: (ctx) {
           if (parts is ForEachPartsWithDeclaration) {
             if (parts.loopVariable.type != null &&
-                !elementType.isAssignableTo(
+                !elementType.resolveTypeChain(ctx).isAssignableTo(
                     ctx,
                     TypeRef.fromAnnotation(
                         ctx, ctx.library, parts.loopVariable.type!))) {
@@ -54,7 +54,7 @@ List<TypeRef> compileForElementForList(
           } else if (parts is ForEachPartsWithIdentifier) {
             loopVariable = compileExpressionAsReference(parts.identifier, ctx);
             final type = loopVariable.resolveType(ctx);
-            if (!elementType.isAssignableTo(ctx, type)) {
+            if (!elementType.resolveTypeChain(ctx).isAssignableTo(ctx, type)) {
               throw CompileError('Cannot assign $elementType to $type', parts,
                   ctx.library, ctx);
             }
