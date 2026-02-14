@@ -97,8 +97,18 @@ class IdentifierReference implements Reference {
     final decl = declarationValue.declaration!;
 
     if (decl is VariableDeclaration) {
-      return ctx.topLevelVariableInferredTypes[declarationValue.sourceLib]![
-          decl.name.lexeme]!;
+      final inferredType = ctx
+          .topLevelVariableInferredTypes[declarationValue.sourceLib]
+          ?[decl.name.lexeme];
+      if (inferredType != null) return inferredType;
+      // Variable type not yet inferred (e.g. no initializer, or compiled
+      // out of order). Resolve from the AST type annotation if available.
+      final varList = decl.parent;
+      if (varList is VariableDeclarationList && varList.type != null) {
+        return TypeRef.fromAnnotation(
+            ctx, declarationValue.sourceLib, varList.type!);
+      }
+      return CoreTypes.dynamic.ref(ctx);
     }
     return CoreTypes.type.ref(ctx);
   }

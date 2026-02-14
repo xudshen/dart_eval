@@ -111,8 +111,8 @@ class $InstanceImpl implements $Instance {
   }
 
   @override
-  Never get $reified => throw UnimplementedError();
+  dynamic get $reified => this;
 
   @override
-  Never get $value => throw UnimplementedError();
+  dynamic get $value => this;
 }

@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
@@ -39,5 +40,19 @@ void compileTopLevelVariableDeclaration(
     ctx.topLevelGlobalInitializers[ctx.library]![varName] = pos;
     ctx.runtimeGlobalInitializerMap[index] = pos;
     ctx.pushOp(Return.make(V.scopeFrameOffset), Return.LEN);
+  } else {
+    // No initializer (e.g. `int? _v;`). Still register the type so later
+    // references can resolve it via topLevelVariableInferredTypes.
+    final specifiedType = parent.variables.type;
+    TypeRef type;
+    if (specifiedType != null) {
+      type = TypeRef.fromAnnotation(ctx, ctx.library, specifiedType);
+    } else {
+      type = CoreTypes.dynamic.ref(ctx);
+    }
+    if (!type.isUnboxedAcrossFunctionBoundaries) {
+      type = type.copyWith(boxed: true);
+    }
+    ctx.topLevelVariableInferredTypes[ctx.library]![varName] = type;
   }
 }

@@ -54,7 +54,9 @@ void main(List<String> args) {
     if (line.trim().isEmpty) continue;
     late final Map<String, dynamic> event;
     try {
-      event = jsonDecode(line) as Map<String, dynamic>;
+      final decoded = jsonDecode(line);
+      if (decoded is! Map<String, dynamic>) continue;
+      event = decoded;
     } on FormatException {
       continue; // skip non-JSON lines (e.g. stderr from test runner)
     }

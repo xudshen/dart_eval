@@ -1,4 +1,5 @@
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
 import 'package:dart_eval/src/eval/runtime/ops/all_ops.dart';
 
@@ -23,19 +24,43 @@ class OffsetTracker {
           resolvedOffset = offset.offset!;
         } else*/
         if (offset.methodType == 2) {
-          resolvedOffset = context.instanceDeclarationPositions[offset.file!]![
-              offset.className!]![2]![offset.name!]!;
+          final positions =
+              context.instanceDeclarationPositions[offset.file!];
+          final classPositions = positions?[offset.className!];
+          final methodPositions = classPositions?[2];
+          final resolved = methodPositions?[offset.name!];
+          if (resolved == null) {
+            throw CompileError(
+                'Cannot resolve deferred instance method '
+                '${offset.className}.${offset.name} '
+                '(file ${offset.file})');
+          }
+          resolvedOffset = resolved;
         } else {
-          resolvedOffset = context
-              .topLevelDeclarationPositions[offset.file!]![offset.name!]!;
+          final positions =
+              context.topLevelDeclarationPositions[offset.file!];
+          final resolved = positions?[offset.name!];
+          if (resolved == null) {
+            throw CompileError(
+                'Cannot resolve deferred call to '
+                '${offset.name} (file ${offset.file})');
+          }
+          resolvedOffset = resolved;
         }
         final newOp = Call.make(resolvedOffset);
         source[pos] = newOp;
       } else if (op is PushObjectPropertyImpl) {
-        final resolvedOffset = context.instanceGetterIndices[offset.file!]![
-            offset.className!]![offset.name!]!;
+        final indices = context.instanceGetterIndices[offset.file!];
+        final classIndices = indices?[offset.className!];
+        final resolved = classIndices?[offset.name!];
+        if (resolved == null) {
+          throw CompileError(
+              'Cannot resolve deferred property '
+              '${offset.className}.${offset.name} '
+              '(file ${offset.file})');
+        }
         final newOp =
-            PushObjectPropertyImpl.make(op.objectOffset, resolvedOffset);
+            PushObjectPropertyImpl.make(op.objectOffset, resolved);
         source[pos] = newOp;
       }
     });

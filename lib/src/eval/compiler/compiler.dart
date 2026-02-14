@@ -387,7 +387,11 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       _topLevelDeclarationsMap[libraryIndex]![name] =
           DeclarationOrBridge(libraryIndex, declaration: declaration);
 
-      if (declaration is ClassDeclaration ||
+      if (declaration is ClassTypeAlias) {
+        // Mixin application syntax: class C = A with M;
+        // Register empty instance declarations (members come from superclass/mixin)
+        _instanceDeclarationsMap[libraryIndex]![name] = {};
+      } else if (declaration is ClassDeclaration ||
           declaration is EnumDeclaration ||
           declaration is MixinDeclaration) {
         _instanceDeclarationsMap[libraryIndex]![name] = {};
@@ -499,7 +503,8 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       final declaration = declarationOrBridge.declaration!;
       if (declaration is! ClassDeclaration &&
           declaration is! EnumDeclaration &&
-          declaration is! MixinDeclaration) {
+          declaration is! MixinDeclaration &&
+          declaration is! ClassTypeAlias) {
         return null;
       }
       final name = (declaration as NamedCompilationUnitMember).name.lexeme;
@@ -519,24 +524,32 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
         final dob = decEntry.value;
         if (dob.isBridge) continue;
         final declaration = dob.declaration;
-        if (declaration is! GenericTypeAlias) continue;
-
-        final aliasedType = declaration.type;
         _ctx.visibleTypes[libraryIndex] ??= {};
 
-        if (aliasedType is GenericFunctionType) {
+        if (declaration is GenericTypeAlias) {
+          final aliasedType = declaration.type;
+
+          if (aliasedType is GenericFunctionType) {
+            _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] =
+                CoreTypes.function.ref(_ctx);
+          } else if (aliasedType is NamedType) {
+            // Resolve named type alias (e.g. typedef StringList = List<String>)
+            _ctx.library = libraryIndex;
+            try {
+              final resolved =
+                  TypeRef.fromAnnotation(_ctx, libraryIndex, aliasedType);
+              _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] =
+                  resolved;
+            } catch (_) {
+              // If the target type can't be resolved, skip this typedef
+            }
+          }
+        } else if (declaration is FunctionTypeAlias) {
+          // Old-style typedef (e.g. typedef C t1(C c))
           _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] =
               CoreTypes.function.ref(_ctx);
-        } else if (aliasedType is NamedType) {
-          // Resolve named type alias (e.g. typedef StringList = List<String>)
-          _ctx.library = libraryIndex;
-          try {
-            final resolved =
-                TypeRef.fromAnnotation(_ctx, libraryIndex, aliasedType);
-            _ctx.visibleTypes[libraryIndex]![declaration.name.lexeme] = resolved;
-          } catch (_) {
-            // If the target type can't be resolved, skip this typedef
-          }
+        } else {
+          continue;
         }
       }
     }

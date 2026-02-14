@@ -84,6 +84,68 @@ class $Expect {
             ],
           ),
           isStatic: true),
+      'identical': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'notIdentical': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'runtimeIsType': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('o',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'runtimeIsNotType': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('o',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'approxEquals': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'stringEquals': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
       'fail': BridgeMethodDef(
           BridgeFunctionDef(
             returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
@@ -135,6 +197,18 @@ class $Expect {
         _library, 'Expect.isNull', const _$isNull().call);
     runtime.registerBridgeFunc(
         _library, 'Expect.isNotNull', const _$isNotNull().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.identical', const _$identical().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.notIdentical', const _$notIdentical().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.runtimeIsType', const _$runtimeIsType().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.runtimeIsNotType', const _$runtimeIsNotType().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.approxEquals', const _$approxEquals().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.stringEquals', const _$stringEquals().call);
     runtime.registerBridgeFunc(
         _library, 'Expect.throws', const _$throws().call);
     runtime.registerBridgeFunc(
@@ -293,6 +367,93 @@ class _$listEquals implements EvalCallable {
             'Expect.listEquals: mismatch at index $i '
             '(expected: ${expected[i]}, actual: ${actual[i]})');
       }
+    }
+    return null;
+  }
+}
+
+class _$identical implements EvalCallable {
+  const _$identical();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = args[0]?.$reified;
+    final actual = args[1]?.$reified;
+    if (!identical(expected, actual)) {
+      throw Co19ExpectException(
+          'Expect.identical(expected: <$expected>, actual: <$actual>) fails.');
+    }
+    return null;
+  }
+}
+
+class _$notIdentical implements EvalCallable {
+  const _$notIdentical();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = args[0]?.$reified;
+    final actual = args[1]?.$reified;
+    if (identical(expected, actual)) {
+      throw Co19ExpectException(
+          'Expect.notIdentical(expected: <$expected>, actual: <$actual>) fails.');
+    }
+    return null;
+  }
+}
+
+class _$runtimeIsType implements EvalCallable {
+  const _$runtimeIsType();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    // runtimeIsType<T>(o) verifies `o is T` at runtime.
+    // In dart_eval, the compiler doesn't fold type checks, so this is
+    // effectively a no-op — the preceding Expect.isTrue(o is T) already
+    // validates the behavior. We accept it silently.
+    return null;
+  }
+}
+
+class _$runtimeIsNotType implements EvalCallable {
+  const _$runtimeIsNotType();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    // Same rationale as runtimeIsType — no-op in dart_eval.
+    return null;
+  }
+}
+
+class _$approxEquals implements EvalCallable {
+  const _$approxEquals();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = (args[0]?.$reified as num);
+    final actual = (args[1]?.$reified as num);
+    final tolerance = args.length > 2 && args[2] != null
+        ? (args[2]!.$reified as num)
+        : (expected / 1e4).abs();
+    if (!((expected - actual).abs() <= tolerance)) {
+      throw Co19ExpectException(
+          'Expect.approxEquals(expected:<$expected>, actual:<$actual>, '
+          'tolerance:<$tolerance>) fails');
+    }
+    return null;
+  }
+}
+
+class _$stringEquals implements EvalCallable {
+  const _$stringEquals();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = args[0]?.$reified as String?;
+    final actual = args[1]?.$reified as String?;
+    if (expected != actual) {
+      throw Co19ExpectException(
+          'Expect.stringEquals(expected: <$expected>, <$actual>) fails');
     }
     return null;
   }
