@@ -400,6 +400,11 @@ String? wrapType(BindgenContext ctx, DartType type, String expr,
         return '$unionStr$b';
       }
     }
+    // Unbounded type parameter (T extends dynamic) — wrap as $Object
+    // at runtime. This is correct because dart_eval uses type erasure for
+    // generics: the actual value is always a concrete object at runtime.
+    ctx.imports.add('package:dart_eval/stdlib/core.dart');
+    return '$unionStr\$Object($expr)';
   }
 
   return null;

@@ -243,11 +243,26 @@ String bridgeConstructorDef(BindgenContext ctx,
 
 String bridgeFunctionDef(BindgenContext ctx,
     {required ExecutableElement2 function}) {
+  var genericsStr = '';
+  final typeParams = function.typeParameters2;
+  if (typeParams.isNotEmpty) {
+    genericsStr = '''
+          generics: {
+            ${typeParams.map((e) {
+      final boundStr =
+          e.bound != null && !ctx.implicitSupers && isTypeResolvable(ctx, e.bound!)
+              ? '\$extends: ${bridgeTypeRefFromType(ctx, e.bound!)}'
+              : '';
+      return '\'${e.name3}\': BridgeGenericParam($boundStr)';
+    }).join(',')}
+          },''';
+  }
+
   return '''
         BridgeFunctionDef(
           returns: ${bridgeTypeAnnotationFrom(ctx, function.returnType)},
           namedParams: [${namedParameters(ctx, element: function)}],
-          params: [${positionalParameters(ctx, element: function)}],
+          params: [${positionalParameters(ctx, element: function)}],$genericsStr
         ),
 ''';
 }

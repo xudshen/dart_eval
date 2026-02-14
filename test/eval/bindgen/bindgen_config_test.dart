@@ -165,6 +165,22 @@ void main() {
       expect(output, contains('\$minFn'));
     });
 
+    test('泛型函数 \$declaration 包含 generics map', () async {
+      final output = await bindgen.parseFromConfig(
+        libraryUri: 'dart:math',
+        className: 'min',
+        overrideLibrary: 'dart:math',
+      );
+
+      expect(output, isNotNull);
+      expect(output, contains('generics:'),
+          reason: '泛型函数的 BridgeFunctionDef 应包含 generics map');
+      expect(output, contains('BridgeGenericParam'),
+          reason: '泛型参数应使用 BridgeGenericParam 声明');
+      expect(output, contains("'T'"),
+          reason: '类型参数 T 应出现在 generics map 中');
+    });
+
     test('泛型函数 max<T> 生成绑定', () async {
       final output = await bindgen.parseFromConfig(
         libraryUri: 'dart:math',

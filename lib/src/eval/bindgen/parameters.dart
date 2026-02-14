@@ -145,6 +145,17 @@ String argumentAccessor(
       paramBuffer.write('?.\$$accessor');
       if (param.hasDefaultValue) {
         var defaultCode = param.defaultValueCode!;
+        // Strip import alias prefixes from default values.
+        // The analyzer returns source-level code (e.g. `ui.KeyEventDeviceType.keyboard`)
+        // which uses the original import prefix. Our generated files import
+        // libraries directly, so strip the alias (e.g. `ui.` → ``).
+        // Only strip when what follows starts with an uppercase letter (a type
+        // name), to avoid mangling `double.infinity`, `int.parse`, etc.
+        final aliasMatch = RegExp(r'^(const\s+)?([a-z][a-zA-Z]*)\.([A-Z][\S]*)$').firstMatch(defaultCode);
+        if (aliasMatch != null) {
+          final constPrefix = aliasMatch.group(1) ?? '';
+          defaultCode = '$constPrefix${aliasMatch.group(3)!}';
+        }
         // Qualify unqualified static member references.
         // `defaultValueCode` gives source-level code (e.g. `strokeAlignInside`)
         // which only resolves inside the defining class. In our generated
