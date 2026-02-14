@@ -7,6 +7,9 @@ import 'package:dart_eval/src/eval/bindgen/permission.dart';
 import 'package:dart_eval/src/eval/bindgen/type.dart';
 
 String $methods(BindgenContext ctx, InterfaceElement2 element) {
+  final isListenable = element.allSupertypes
+      .any((s) => s.element3.name3 == 'Listenable');
+
   final methods = {
     if (ctx.implicitSupers)
       for (var s in element.allSupertypes)
@@ -18,6 +21,10 @@ String $methods(BindgenContext ctx, InterfaceElement2 element) {
       .where((method) => !method.isPrivate && !method.isStatic)
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
+      // For Listenable classes, skip addListener/removeListener — these are
+      // handled inline in $getProperty/$bridgeGet with listener caching.
+      .where((m) => !(isListenable &&
+          (m.name3 == 'addListener' || m.name3 == 'removeListener')))
       .map((e) {
     final returnWrapped = wrapVar(ctx, e.returnType, 'result');
     if (returnWrapped == wrapVarSkipSentinel) return '';

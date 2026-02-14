@@ -28,6 +28,9 @@ String $bridgeGet(BindgenContext ctx, ClassElement2 element) {
 
 String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
     {bool isBridge = false}) {
+  final isListenable = element.allSupertypes
+      .any((s) => s.element3.name3 == 'Listenable');
+
   final methods = {
     if (ctx.implicitSupers)
       for (var s in element.allSupertypes)
@@ -65,6 +68,28 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         return $wrapped;
       ''';
     }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) {
+      // For Listenable classes, override addListener/removeListener with
+      // cached versions so removeListener can find the exact closure.
+      if (isListenable && e.name3 == 'addListener') {
+        return """
+        case 'addListener':
+          return \$Function((runtime, target, args) {
+            final listener = args[0] as EvalCallable;
+            void fn() => listener.call(runtime, null, []);
+            _\$listenerCache[listener] = fn;
+            super.addListener(fn);
+            return null;
+          });""";
+      }
+      if (isListenable && e.name3 == 'removeListener') {
+        return """
+        case 'removeListener':
+          return \$Function((runtime, target, args) {
+            final cached = _\$listenerCache.remove(args[0] as EvalCallable);
+            if (cached != null) super.removeListener(cached);
+            return null;
+          });""";
+      }
       final returnWrapped = wrapVar(ctx, e.returnType, 'result');
       if (returnWrapped == wrapVarSkipSentinel) return '';
       final returnsValue =
@@ -88,6 +113,30 @@ String propertyGetters(BindgenContext ctx, InterfaceElement2 element,
         return $wrapped;
       ''';
     }).where((s) => s.isNotEmpty).join('\n')}${methods0.map((e) {
+      // For Listenable classes, override addListener/removeListener with
+      // cached versions so removeListener can find the exact closure.
+      if (isListenable && e.name3 == 'addListener') {
+        return """
+      case 'addListener':
+        return \$Function((runtime, target, args) {
+          final self = target! as \$${element.name3};
+          final listener = args[0] as EvalCallable;
+          void fn() => listener.call(runtime, null, []);
+          self._\$listenerCache[listener] = fn;
+          self.\$value.addListener(fn);
+          return null;
+        });""";
+      }
+      if (isListenable && e.name3 == 'removeListener') {
+        return """
+      case 'removeListener':
+        return \$Function((runtime, target, args) {
+          final self = target! as \$${element.name3};
+          final cached = self._\$listenerCache.remove(args[0] as EvalCallable);
+          if (cached != null) self.\$value.removeListener(cached);
+          return null;
+        });""";
+      }
       // Check if the method's return type is bound — if not, the method
       // was skipped in $methods() and __methodName won't exist.
       final returnWrapped = wrapVar(ctx, e.returnType, 'result');

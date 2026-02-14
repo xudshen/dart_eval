@@ -435,10 +435,16 @@ ${$setProperty(ctx, element)}
           ? ''
           : '<${typeParams.map((t) => t.name3).join(', ')}>';
 
+      final isListenable = element.allSupertypes
+          .any((s) => s.element3.name3 == 'Listenable');
+      final bridgeCacheField = isListenable
+          ? '\n  final _\$listenerCache = <EvalCallable, void Function()>{};\n'
+          : '';
+
       return '''
 /// dart_eval bridge binding for [${element.name3}]
 class \$${element.name3}\$bridge$typeParamDecl extends ${element.name3}$typeParamUse with \$Bridge<${element.name3}$typeParamUse> {
-${bindForwardedConstructors(ctx, element)}
+${bindForwardedConstructors(ctx, element)}$bridgeCacheField
 /// Configure this class for use in a [Runtime]
 ${bindConfigureForRuntime(ctx, element, isBridge: true)}
 /// Compile-time type specification of [\$${element.name3}\$bridge]
@@ -813,8 +819,14 @@ ${$setProperty(ctx, element)}
   }
 
   String $wrap(BindgenContext ctx, InterfaceElement2 element) {
+    final isListenable = element.allSupertypes
+        .any((s) => s.element3.name3 == 'Listenable');
+    final cacheField = isListenable
+        ? '\n  final _\$listenerCache = <EvalCallable, void Function()>{};'
+        : '';
     return '''
   final \$Instance _superclass;
+  $cacheField
 
   @override
   final ${element.name3} \$value;
