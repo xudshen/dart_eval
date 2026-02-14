@@ -56,12 +56,13 @@ String argumentAccessor(
   }
   final type = param.type;
   if (type.isDartCoreFunction || type is FunctionType) {
-    // For optional nullable function-type params, guard with null check so the
-    // closure is only created when the eval code provides a callback value.
-    // Without this, all callbacks would be non-null, triggering validation
-    // errors (e.g. GestureDetector rejects concurrent pan+scale handlers).
-    if (!param.isRequired &&
-        type.nullabilitySuffix == NullabilitySuffix.question) {
+    // For nullable function-type params (both required and optional), guard
+    // with null check so the closure is only created when the eval code
+    // provides a callback value. Without this, required nullable callbacks
+    // (e.g. `required VoidCallback? onPressed`) crash on `args[idx]!`, and
+    // optional nullable callbacks would always be non-null, triggering
+    // validation errors (e.g. GestureDetector rejects concurrent handlers).
+    if (type.nullabilitySuffix == NullabilitySuffix.question) {
       paramBuffer.write('args[$idx] == null ? null : ');
     }
     // For optional non-nullable function-type params with defaults
