@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-02-14T20:53:15.222194",
+  "input_dir": "../../third_party/co19/Language/Enums",
+  "output_file": "test/co19/language_enums/generated_test.dart",
+  "stats": {
+    "total_files": 31,
+    "included_by_filter": 9,
+    "transformed": 9,
+    "transform_failed": 0,
+    "excluded": 22,
+    "skipped": 0,
+    "not_test": 0
+  },
+  "exclude_reasons": {
+    "compile-error": 22
+  }
+}

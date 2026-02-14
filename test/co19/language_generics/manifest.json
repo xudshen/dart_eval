@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-02-14T20:53:17.016744",
+  "input_dir": "../../third_party/co19/Language/Generics",
+  "output_file": "test/co19/language_generics/generated_test.dart",
+  "stats": {
+    "total_files": 195,
+    "included_by_filter": 88,
+    "transformed": 88,
+    "transform_failed": 0,
+    "excluded": 106,
+    "skipped": 1,
+    "not_test": 0
+  },
+  "exclude_reasons": {
+    "compile-error": 105,
+    "extension type": 1,
+    "interface class": 1
+  }
+}

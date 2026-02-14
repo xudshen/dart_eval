@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-02-14T20:53:09.514759",
+  "input_dir": "../../third_party/co19/Language/Functions",
+  "output_file": "test/co19/language_functions/generated_test.dart",
+  "stats": {
+    "total_files": 188,
+    "included_by_filter": 34,
+    "transformed": 34,
+    "transform_failed": 0,
+    "excluded": 151,
+    "skipped": 2,
+    "not_test": 1
+  },
+  "exclude_reasons": {
+    "compile-error": 56,
+    "sync*": 83,
+    "async*": 12,
+    "extension type": 2,
+    "not a test file": 1
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-02-14T20:53:08.923341",
+  "input_dir": "../../third_party/co19/Language/Statements",
+  "output_file": "test/co19/language_statements/generated_test.dart",
+  "stats": {
+    "total_files": 539,
+    "included_by_filter": 182,
+    "transformed": 182,
+    "transform_failed": 0,
+    "excluded": 355,
+    "skipped": 0,
+    "not_test": 2
+  },
+  "exclude_reasons": {
+    "compile-error": 192,
+    "await for": 28,
+    "yield": 35,
+    "not a test file": 2,
+    "async*": 63,
+    "sync*": 37
+  }
+}

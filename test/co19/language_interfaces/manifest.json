@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-02-14T20:53:22.079818",
+  "input_dir": "../../third_party/co19/Language/Interfaces",
+  "output_file": "test/co19/language_interfaces/generated_test.dart",
+  "stats": {
+    "total_files": 100,
+    "included_by_filter": 22,
+    "transformed": 22,
+    "transform_failed": 0,
+    "excluded": 78,
+    "skipped": 0,
+    "not_test": 0
+  },
+  "exclude_reasons": {
+    "compile-error": 71,
+    "interface class": 7
+  }
+}

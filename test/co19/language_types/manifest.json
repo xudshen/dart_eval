@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-02-14T20:53:16.150646",
+  "input_dir": "../../third_party/co19/Language/Types",
+  "output_file": "test/co19/language_types/generated_test.dart",
+  "stats": {
+    "total_files": 285,
+    "included_by_filter": 157,
+    "transformed": 156,
+    "transform_failed": 1,
+    "excluded": 119,
+    "skipped": 5,
+    "not_test": 4
+  },
+  "exclude_reasons": {
+    "compile-error": 117,
+    "deferred import": 1,
+    "not a test file": 4,
+    "await for": 2,
+    "extension type": 4
+  }
+}

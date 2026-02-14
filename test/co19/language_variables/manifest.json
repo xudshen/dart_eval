@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-02-14T20:53:11.234500",
+  "input_dir": "../../third_party/co19/Language/Variables",
+  "output_file": "test/co19/language_variables/generated_test.dart",
+  "stats": {
+    "total_files": 112,
+    "included_by_filter": 38,
+    "transformed": 38,
+    "transform_failed": 0,
+    "excluded": 70,
+    "skipped": 3,
+    "not_test": 1
+  },
+  "exclude_reasons": {
+    "extension type": 3,
+    "compile-error": 70,
+    "not a test file": 1
+  }
+}

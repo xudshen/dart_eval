@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-02-14T20:53:10.458021",
+  "input_dir": "../../third_party/co19/Language/Classes",
+  "output_file": "test/co19/language_classes/generated_test.dart",
+  "stats": {
+    "total_files": 854,
+    "included_by_filter": 281,
+    "transformed": 281,
+    "transform_failed": 0,
+    "excluded": 563,
+    "skipped": 1,
+    "not_test": 9
+  },
+  "exclude_reasons": {
+    "compile-error": 559,
+    "not a test file": 9,
+    "extension type": 1,
+    "interface class": 1,
+    "base class": 2,
+    "dart:mirrors": 1
+  }
+}

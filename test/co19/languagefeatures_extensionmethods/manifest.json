@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-02-14T20:53:24.917319",
+  "input_dir": "../../third_party/co19/LanguageFeatures/Extension-methods",
+  "output_file": "test/co19/languagefeatures_extensionmethods/generated_test.dart",
+  "stats": {
+    "total_files": 275,
+    "included_by_filter": 132,
+    "transformed": 132,
+    "transform_failed": 0,
+    "excluded": 123,
+    "skipped": 7,
+    "not_test": 13
+  },
+  "exclude_reasons": {
+    "compile-error": 122,
+    "not a test file": 13,
+    "deferred import": 2,
+    "extension type": 5,
+    "yield": 1
+  }
+}
