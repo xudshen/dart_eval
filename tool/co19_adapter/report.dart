@@ -52,7 +52,12 @@ void main(List<String> args) {
 
   for (final line in lines) {
     if (line.trim().isEmpty) continue;
-    final event = jsonDecode(line) as Map<String, dynamic>;
+    late final Map<String, dynamic> event;
+    try {
+      event = jsonDecode(line) as Map<String, dynamic>;
+    } on FormatException {
+      continue; // skip non-JSON lines (e.g. stderr from test runner)
+    }
     final type = event['type'] as String?;
 
     if (type == 'testStart') {

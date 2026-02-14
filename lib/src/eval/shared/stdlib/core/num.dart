@@ -380,6 +380,17 @@ class $int extends $num<int> {
                   BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.int)), false),
             ],
             namedParams: [])),
+        '>>>': BridgeMethodDef(BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.int)),
+            params: [
+              BridgeParameter('other',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.int)), false),
+            ],
+            namedParams: [])),
+        '~': BridgeMethodDef(BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.int)),
+            params: [],
+            namedParams: [])),
       },
       getters: {},
       setters: {},
@@ -442,6 +453,10 @@ class $int extends $num<int> {
         return __bitwiseXor;
       case '~/':
         return __truncatediv;
+      case '>>>':
+        return __unsignedShiftRight;
+      case '~':
+        return __bitwiseNot;
     }
     return super.$getProperty(runtime, identifier);
   }
@@ -528,6 +543,22 @@ class $int extends $num<int> {
     final other = args[0];
     final evalResult = target!.$value ~/ other!.$value;
 
+    return $int(evalResult);
+  }
+
+  static const $Function __unsignedShiftRight =
+      $Function(_unsignedShiftRight);
+  static $Value? _unsignedShiftRight(
+      Runtime runtime, $Value? target, List<$Value?> args) {
+    final other = args[0];
+    final evalResult = target!.$value >>> other!.$value;
+    return $int(evalResult);
+  }
+
+  static const $Function __bitwiseNot = $Function(_bitwiseNot);
+  static $Value? _bitwiseNot(
+      Runtime runtime, $Value? target, List<$Value?> args) {
+    final evalResult = ~(target!.$value as int);
     return $int(evalResult);
   }
 }

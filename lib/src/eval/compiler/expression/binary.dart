@@ -33,7 +33,8 @@ final binaryOpMap = {
   TokenType.GT_GT: '>>',
   TokenType.BANG_EQ: '!=',
   TokenType.CARET: '^',
-  TokenType.TILDE_SLASH: '~/'
+  TokenType.TILDE_SLASH: '~/',
+  TokenType.GT_GT_GT: '>>>'
 };
 
 /// Compile a [BinaryExpression] to EVC bytecode

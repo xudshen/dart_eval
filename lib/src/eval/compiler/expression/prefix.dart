@@ -17,6 +17,7 @@ const _opMap = {
   TokenType.BANG: '!',
   TokenType.PLUS_PLUS: '+',
   TokenType.MINUS_MINUS: '-',
+  TokenType.TILDE: '~',
 };
 
 /// Compile a [PrefixExpression] to EVC bytecode
@@ -44,7 +45,7 @@ Variable compilePrefixExpression(CompilerContext ctx, PrefixExpression e) {
         e);
   }
 
-  if (method == "!") {
+  if (method == "!" || method == "~") {
     return V.invoke(ctx, method, []).result;
   }
 

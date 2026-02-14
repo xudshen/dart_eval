@@ -530,5 +530,78 @@ void main() {
         42,
       );
     });
+
+    test('Local function declaration statement', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              int double(int x) => x * 2;
+              return double(21);
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
+
+    test('Local function with block body', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              int add(int a, int b) {
+                return a + b;
+              }
+              return add(20, 22);
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
+
+    test('Empty statement (semicolon)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              ;
+              return 42;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        42,
+      );
+    });
+
+    test('Labeled statement', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              int x = 0;
+              outer: for (int i = 0; i < 3; i++) {
+                x = x + i;
+              }
+              return x;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        3,
+      );
+    });
   });
 }

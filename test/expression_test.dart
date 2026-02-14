@@ -413,5 +413,37 @@ void main() {
         runtime.executeLib('package:example/main.dart', 'main');
       }, prints('True executed\ntrue\nFalse executed\nfalse\n'));
     });
+
+    test('Unsigned right shift operator (>>>)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              return (-1) >>> 28;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        (-1) >>> 28,
+      );
+    });
+
+    test('Bitwise NOT operator (~)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              return ~0;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        ~0,
+      );
+    });
   });
 }
