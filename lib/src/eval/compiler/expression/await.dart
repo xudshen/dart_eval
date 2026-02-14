@@ -23,7 +23,12 @@ Variable compileAwaitExpression(AwaitExpression e, CompilerContext ctx) {
   final subject = compileExpression(e.expression, ctx);
   final type = subject.type.resolveTypeChain(ctx);
 
-  if (!type.isAssignableTo(ctx, CoreTypes.future.ref(ctx))) {
+  // Allow awaiting Future, dynamic, and Object types.
+  // In Dart, `await expr` is valid for any expression; if it's not a Future,
+  // it completes immediately with the value itself.
+  if (!type.isAssignableTo(ctx, CoreTypes.future.ref(ctx)) &&
+      type != CoreTypes.dynamic.ref(ctx) &&
+      type != CoreTypes.object.ref(ctx)) {
     throw CompileError("Cannot await something that isn't a Future");
   }
 

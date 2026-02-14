@@ -528,7 +528,16 @@ class IndexedReference implements Reference {
           ? _variable.type.specifiedTypeArgs[0]
           : CoreTypes.dynamic.ref(ctx);
     }
-    return getValue(ctx).type;
+    if (_variable.type.isAssignableTo(ctx, CoreTypes.map.ref(ctx),
+        forceAllowDynamic: false)) {
+      return _variable.type.specifiedTypeArgs.length >= 2
+          ? _variable.type.specifiedTypeArgs[1]
+          : CoreTypes.dynamic.ref(ctx);
+    }
+    // For custom [] operators, return dynamic without emitting getter bytecode.
+    // This avoids duplicate evaluation when resolveType is called multiple
+    // times (e.g. in compound assignment like c[i] *= val).
+    return CoreTypes.dynamic.ref(ctx);
   }
 
   @override

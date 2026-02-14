@@ -11,12 +11,11 @@ import 'package:dart_eval/src/eval/compiler/variable.dart';
 Variable compileAssignmentExpression(
     AssignmentExpression e, CompilerContext ctx) {
   final L = compileExpressionAsReference(e.leftHandSide, ctx);
-  final R =
-      compileExpression(e.rightHandSide, ctx, L.resolveType(ctx, forSet: true));
+  final resolvedType = L.resolveType(ctx, forSet: true);
+  final R = compileExpression(e.rightHandSide, ctx, resolvedType);
 
   if (e.operator.type == TokenType.EQ) {
-    final set =
-        R.type != L.resolveType(ctx, forSet: true) ? R.boxIfNeeded(ctx) : R;
+    final set = R.type != resolvedType ? R.boxIfNeeded(ctx) : R;
     return L.setValue(ctx, set);
   } else if (e.operator.type.binaryOperatorOfCompoundAssignment ==
       TokenType.QUESTION_QUESTION) {
@@ -34,9 +33,7 @@ Variable compileAssignmentExpression(
     final method = e.operator.type.binaryOperatorOfCompoundAssignment!.lexeme;
     final V = L.getValue(ctx);
     final res = V.invoke(ctx, method, [R]).result;
-    final set = res.type != L.resolveType(ctx, forSet: true)
-        ? res.boxIfNeeded(ctx)
-        : res;
+    final set = res.type != resolvedType ? res.boxIfNeeded(ctx) : res;
     return L.setValue(ctx, set);
   }
 }

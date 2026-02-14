@@ -139,6 +139,11 @@ void _validateSwitchCases(List<SwitchMember> cases) {
     // Skip default case - it's always at the end
     if (currentCase is SwitchDefault) continue;
 
+    // Last case (or case before default) doesn't need a terminator
+    final isLastCase = i == cases.length - 1 ||
+        (i == cases.length - 2 && cases.last is SwitchDefault);
+    if (isLastCase) continue;
+
     // If this case has statements, check if it properly terminates
     if (currentCase.statements.isNotEmpty) {
       if (!_caseProperlyTerminates(currentCase.statements)) {

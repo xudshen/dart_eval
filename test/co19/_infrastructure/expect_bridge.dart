@@ -177,6 +177,28 @@ class $Expect {
             ],
           ),
           isStatic: true),
+      'iterableEquals': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
+      'setEquals': BridgeMethodDef(
+          BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.voidType)),
+            params: [
+              BridgeParameter('expected',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+              BridgeParameter('actual',
+                  BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.dynamic)), false),
+            ],
+          ),
+          isStatic: true),
     },
     getters: {},
     setters: {},
@@ -217,6 +239,10 @@ class $Expect {
         _library, 'Expect.listEquals', const _$listEquals().call);
     runtime.registerBridgeFunc(
         _library, 'Expect.mapEquals', const _$mapEquals().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.iterableEquals', const _$iterableEquals().call);
+    runtime.registerBridgeFunc(
+        _library, 'Expect.setEquals', const _$setEquals().call);
   }
 }
 
@@ -487,6 +513,66 @@ class _$mapEquals implements EvalCallable {
             'Expect.mapEquals: mismatch at key $key '
             '(expected: ${expected[key]}, actual: ${actual[key]})');
       }
+    }
+    return null;
+  }
+}
+
+class _$iterableEquals implements EvalCallable {
+  const _$iterableEquals();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = args[0]?.$reified;
+    final actual = args[1]?.$reified;
+    if (expected is! Iterable) {
+      throw Co19ExpectException('expected is not an Iterable: $expected');
+    }
+    if (actual is! Iterable) {
+      throw Co19ExpectException('actual is not an Iterable: $actual');
+    }
+    final eIter = expected.iterator;
+    final aIter = actual.iterator;
+    int i = 0;
+    while (eIter.moveNext()) {
+      if (!aIter.moveNext()) {
+        throw Co19ExpectException(
+            'Expect.iterableEquals: actual is shorter than expected');
+      }
+      if (eIter.current != aIter.current) {
+        throw Co19ExpectException(
+            'Expect.iterableEquals: mismatch at index $i '
+            '(expected: ${eIter.current}, actual: ${aIter.current})');
+      }
+      i++;
+    }
+    if (aIter.moveNext()) {
+      throw Co19ExpectException(
+          'Expect.iterableEquals: actual is longer than expected');
+    }
+    return null;
+  }
+}
+
+class _$setEquals implements EvalCallable {
+  const _$setEquals();
+
+  @override
+  $Value? call(Runtime runtime, $Value? target, List<$Value?> args) {
+    final expected = args[0]?.$reified;
+    final actual = args[1]?.$reified;
+    if (expected is! Iterable) {
+      throw Co19ExpectException('expected is not an Iterable: $expected');
+    }
+    if (actual is! Iterable) {
+      throw Co19ExpectException('actual is not an Iterable: $actual');
+    }
+    final expectedSet = expected.toSet();
+    final actualSet = actual.toSet();
+    if (expectedSet.length != actualSet.length ||
+        !expectedSet.containsAll(actualSet)) {
+      throw Co19ExpectException(
+          'Expect.setEquals(expected: $expectedSet, actual: $actualSet) fails');
     }
     return null;
   }
