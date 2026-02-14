@@ -101,7 +101,7 @@ class DartCorePlugin implements EvalPlugin {
     runtime.registerBridgeFunc('dart:core', 'num.tryParse', $num.$tryParse);
     runtime.registerBridgeFunc('dart:core', 'int.parse', $int.$parse);
     runtime.registerBridgeFunc('dart:core', 'int.tryParse', $int.$tryParse);
-    runtime.registerBridgeFunc('dart:core', 'Object.hash', $Object.$hash);
+    $Object.configureForRuntime(runtime);
     runtime.registerBridgeFunc('dart:core', 'RangeError.', $RangeError.$new);
     runtime.registerBridgeFunc(
         'dart:core', 'RangeError.value', $RangeError.$_value);

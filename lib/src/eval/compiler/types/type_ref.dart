@@ -431,7 +431,7 @@ class TypeRef {
         return TypeRef.fromBridgeAnnotation(ctx, get.functionDescriptor.returns,
             specifiedType: $class);
       }
-      final set = br.getters[field];
+      final set = br.setters[field];
       if (set != null) {
         return TypeRef.fromBridgeAnnotation(ctx, set.functionDescriptor.returns,
             specifiedType: $class);

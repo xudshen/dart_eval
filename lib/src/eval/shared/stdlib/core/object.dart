@@ -7,10 +7,22 @@ import 'package:dart_eval/stdlib/core.dart';
 class $Object implements $Instance {
   $Object(this.$value);
 
+  static void configureForRuntime(Runtime runtime) {
+    runtime.registerBridgeFunc(
+        'dart:core', 'Object.', (runtime, target, args) {
+      return $Object(Object());
+    });
+    runtime.registerBridgeFunc('dart:core', 'Object.hash', $hash);
+  }
+
   static const $declaration = BridgeClassDef(
       BridgeClassType(BridgeTypeRef(CoreTypes.object),
           $extends: BridgeTypeRef(CoreTypes.dynamic), isAbstract: true),
-      constructors: {},
+      constructors: {
+        '': BridgeConstructorDef(BridgeFunctionDef(
+            returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.object)),
+            params: []))
+      },
       methods: {
         '!=': BridgeMethodDef(BridgeFunctionDef(
             returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.bool)),

@@ -26,12 +26,17 @@ class InvokeDynamic implements EvcOp {
         final methods = object.evalClass.methods;
         final offset = methods[method0];
         if (offset == null) {
-          object = object.evalSuperclass;
-          continue;
+          final sup = object.evalSuperclass;
+          if (sup != null) {
+            object = sup;
+            continue;
+          }
+          // No eval superclass — fall through to bridge/getProperty dispatch
+        } else {
+          runtime.callFrames.add(CallFrame(runtime._prOffset));
+          runtime._prOffset = offset;
+          return;
         }
-        runtime.callFrames.add(CallFrame(runtime._prOffset));
-        runtime._prOffset = offset;
-        return;
       }
 
       if (method0 == 'call' && object is EvalFunctionPtr) {

@@ -22,8 +22,13 @@ extension TearOff on Variable {
     final Declaration dec;
     TypeRef? targetType;
     if (methodOffset!.className != null) {
-      dec = ctx.instanceDeclarationsMap[methodOffset!.file]![
-          methodOffset!.className!]![methodOffset!.name]! as MethodDeclaration;
+      final rawDec = ctx.instanceDeclarationsMap[methodOffset!.file]![
+          methodOffset!.className!]![methodOffset!.name]!;
+      if (rawDec is! MethodDeclaration) {
+        throw CompileError(
+            'Cannot tear off field ${methodOffset!.className}.${methodOffset!.name}');
+      }
+      dec = rawDec;
       targetType =
           ctx.visibleTypes[methodOffset!.file!]![methodOffset!.className!]!;
     } else {

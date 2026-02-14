@@ -69,8 +69,12 @@ class AlwaysReturnType implements ReturnType {
     if (d is ConstructorDeclaration) {
       return AlwaysReturnType(type, false);
     }
-    return AlwaysReturnType.fromAnnotation(
-        ctx, type.file, (d as MethodDeclaration).returnType, fallback);
+    if (d is MethodDeclaration) {
+      return AlwaysReturnType.fromAnnotation(
+          ctx, type.file, d.returnType, fallback);
+    }
+    // Fallback for non-method declarations (e.g. VariableDeclaration)
+    return AlwaysReturnType(fallback ?? CoreTypes.dynamic.ref(ctx), true);
   }
 
   static AlwaysReturnType? fromInstanceMethodOrBuiltin(

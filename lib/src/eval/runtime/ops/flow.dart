@@ -377,6 +377,8 @@ class PopCatch implements EvcOp {
   @override
   void run(Runtime runtime) {
     runtime.callFrames.last.catchOffsets.removeLast();
+    // Mirror the Try push: restore frameOffset from the entry Try added.
+    runtime.frameOffsetStack.removeLast();
   }
 
   @override

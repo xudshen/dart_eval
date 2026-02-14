@@ -155,18 +155,36 @@ void compileClassTypeAliasDeclaration(CompilerContext ctx, ClassTypeAlias d) {
     compileDefaultConstructor(ctx, d, []);
   }
 
-  // Merge superclass instance members
+  // Merge superclass instance members (both bytecode positions and AST declarations)
   _mergeInstanceMembers(ctx, clsName, superName);
+  _mergeInstanceDeclarationsMap(ctx, clsName, superName);
 
   // Merge mixin instance members (mixins override superclass on conflict)
   for (final mixinType in d.withClause.mixinTypes) {
     final mixinName = mixinType.name2.lexeme;
     _mergeInstanceMembers(ctx, clsName, mixinName);
+    _mergeInstanceDeclarationsMap(ctx, clsName, mixinName);
   }
 
   ctx.currentClass = null;
   ctx.temporaryTypes[ctx.library]?.clear();
   ctx.resetStack();
+}
+
+/// Merge instance AST declarations from [sourceName] into [targetName].
+/// This allows compile-time resolution (parameter lists, return types) for
+/// members inherited via ClassTypeAlias.
+void _mergeInstanceDeclarationsMap(
+    CompilerContext ctx, String targetName, String sourceName) {
+  final sourceDecls =
+      ctx.instanceDeclarationsMap[ctx.library]?[sourceName];
+  if (sourceDecls == null) return;
+
+  final targetDecls =
+      ctx.instanceDeclarationsMap[ctx.library]![targetName]!;
+  for (final entry in sourceDecls.entries) {
+    targetDecls.putIfAbsent(entry.key, () => entry.value);
+  }
 }
 
 /// Merge instance getters/setters/methods from [sourceName] into [targetName].

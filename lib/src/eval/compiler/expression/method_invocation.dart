@@ -368,14 +368,17 @@ DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(
   final dec = ctx.instanceDeclarationsMap[instanceType.file]![
       instanceType.name]![methodName];
 
-  if (dec != null) {
-    return DeclarationOrBridge(instanceType.file,
-        declaration: dec as MethodDeclaration);
+  if (dec != null && dec is MethodDeclaration) {
+    return DeclarationOrBridge(instanceType.file, declaration: dec);
   } else {
     final decl = dec0.declaration!;
 
     // Check withClause mixins for the method
-    final withClause = decl is ClassDeclaration ? decl.withClause : null;
+    final withClause = decl is ClassDeclaration
+        ? decl.withClause
+        : decl is ClassTypeAlias
+            ? decl.withClause
+            : null;
     if (withClause != null) {
       for (final mixinType in withClause.mixinTypes) {
         final mixinTypeRef = ctx.visibleTypes[instanceType.file]?[
@@ -392,14 +395,20 @@ DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(
     }
 
     // Fall back to superclass
-    final extendsClause =
-        decl is ClassDeclaration ? decl.extendsClause : null;
-    if (extendsClause == null) {
+    final NamedType? superclassType;
+    if (decl is ClassDeclaration) {
+      superclassType = decl.extendsClause?.superclass;
+    } else if (decl is ClassTypeAlias) {
+      superclassType = decl.superclass;
+    } else {
+      superclassType = null;
+    }
+    if (superclassType == null) {
       return resolveInstanceMethod(
           ctx, CoreTypes.object.ref(ctx), methodName, source, bottomType0);
     }
     final $supertype = ctx.visibleTypes[instanceType.file]![
-        extendsClause.superclass.name2.value()]!;
+        superclassType.name2.value()]!;
     return resolveInstanceMethod(
         ctx, $supertype, methodName, source, bottomType0);
   }

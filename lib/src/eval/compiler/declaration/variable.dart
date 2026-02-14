@@ -35,11 +35,16 @@ void compileTopLevelVariableDeclaration(
       type = type.copyWith(boxed: false);
     }
     final index = ctx.topLevelGlobalIndices[ctx.library]![varName]!;
-    ctx.pushOp(SetGlobal.make(index, V.scopeFrameOffset), SetGlobal.LEN);
     ctx.topLevelVariableInferredTypes[ctx.library]![varName] = type;
     ctx.topLevelGlobalInitializers[ctx.library]![varName] = pos;
     ctx.runtimeGlobalInitializerMap[index] = pos;
-    ctx.pushOp(Return.make(V.scopeFrameOffset), Return.LEN);
+    // If the initializer always throws (e.g. `var x = throw E();`),
+    // V.scopeFrameOffset is -1. Skip SetGlobal/Return to avoid
+    // generating invalid frame access opcodes.
+    if (V.scopeFrameOffset >= 0) {
+      ctx.pushOp(SetGlobal.make(index, V.scopeFrameOffset), SetGlobal.LEN);
+      ctx.pushOp(Return.make(V.scopeFrameOffset), Return.LEN);
+    }
   } else {
     // No initializer (e.g. `int? _v;`). Still register the type so later
     // references can resolve it via topLevelVariableInferredTypes.
