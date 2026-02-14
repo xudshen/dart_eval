@@ -1,0 +1,69 @@
+# Stdlib binding audit targets.
+# Lists classes/types that should have complete bindings in dart_eval.
+# Used by audit_stdlib.dart to report gaps.
+
+dart:core:
+  classes:
+    - String
+    - int
+    - double
+    - num
+    - bool
+    - List
+    - Map
+    - Set
+    - Iterable
+    - Duration
+    - DateTime
+    - RegExp
+    - Uri
+    - Object
+    - Iterator
+    - Pattern
+    - Match
+    - MapEntry
+    - Comparable
+    - Runes
+    - StackTrace
+    - Symbol
+
+dart:math:
+  classes:
+    - Random
+    - Point
+    - Rectangle
+  top_level:
+    - min
+    - max
+    - sqrt
+    - pow
+    - log
+    - sin
+    - cos
+    - tan
+    - atan2
+    - exp
+
+dart:async:
+  classes:
+    - Future
+    - Completer
+    - Timer
+    - StreamController
+    - Stream
+    - StreamSubscription
+  top_level:
+    - scheduleMicrotask
+
+dart:convert:
+  classes:
+    - JsonCodec
+    - Utf8Codec
+    - Base64Codec
+    - Encoding
+    - Converter
+  top_level:
+    - jsonEncode
+    - jsonDecode
+    - utf8
+    - base64
