@@ -163,9 +163,15 @@ class Bindgen implements BridgeDeclarationRegistry {
             barrelFileName,
           ])}';
 
-      // Build a lookup for bridge-mode flags from config
+      // Build lookups for bridge/wrap flags from config
       final bridgeFlags = <String, bool>{
         for (final c in lib.classes) c.name: c.bridge,
+      };
+      // Only capture explicit wrap:true — ClassEntry defaults wrap to false
+      // for simple string entries, so we use !isBridge as the default.
+      final wrapFlags = <String, bool>{
+        for (final c in lib.classes)
+          if (c.wrap) c.name: true,
       };
 
       final allTypeNames = [
@@ -186,6 +192,9 @@ class Bindgen implements BridgeDeclarationRegistry {
         final spec = BridgeTypeSpec(actualUri, typeName);
         if (!hasDeclaration(actualUri, typeName)) {
           final isBridge = bridgeFlags[typeName] ?? false;
+          // Respect explicit wrap flag from config (e.g. bridge: true,
+          // wrap: true for StatelessWidget). Default: wrap = !bridge.
+          final isWrap = wrapFlags[typeName] ?? !isBridge;
           if (element is EnumElement2) {
             defineBridgeEnum(BridgeEnumDef(
               BridgeTypeRef(spec),
@@ -203,7 +212,7 @@ class Bindgen implements BridgeDeclarationRegistry {
               getters: {},
               setters: {},
               fields: {},
-              wrap: !isBridge,
+              wrap: isWrap,
               bridge: isBridge,
             ));
           }
@@ -793,14 +802,30 @@ ${$setProperty(ctx, element)}
     while (currentType != null && !currentType.isDartCoreObject) {
       final narrowWrapper = wrapType(ctx, currentType, '\$value');
       if (narrowWrapper != null) return narrowWrapper;
-      // If the type is registered (has a binding) but wrapType failed
+      // If the type is registered with wrap:true but wrapType failed
       // (missing exportedLibMappings), construct the wrapper directly.
       // This handles same-batch generation where the parent class's
       // barrel file mapping isn't available yet.
+      // Skip bridge-only classes (wrap:false) — they have no .wrap().
       if (isTypeResolvable(ctx, currentType)) {
         final superName = currentType.element3.name3;
         if (superName != null && !superName.startsWith('_')) {
-          return '\$$superName.wrap(\$value)';
+          final superUri =
+              currentType.element3.library2.uri.toString();
+          final hasWrapDecl =
+              ctx.bridgeDeclarations[superUri]?.any((d) =>
+                      d is BridgeClassDef &&
+                      d.type.type.spec?.name == superName &&
+                      d.wrap) ==
+                  true;
+          if (hasWrapDecl) {
+            // Try to add the import for the wrapper class's barrel file.
+            final barrelUri =
+                _exportedLibMappings['$superUri#$superName'] ??
+                    findExportedLibMapping(superUri);
+            if (barrelUri != null) ctx.imports.add(barrelUri);
+            return '\$$superName.wrap(\$value)';
+          }
         }
       }
       final superElement = currentType.element3;

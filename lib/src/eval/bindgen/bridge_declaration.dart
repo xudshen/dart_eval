@@ -111,16 +111,16 @@ ${constructors(ctx, element)}
     },
     ''' : ''}
     methods: {
-${methods(ctx, element)}
+${methods(ctx, element, isBridge: isBridge)}
     },
     getters: {
-${getters(ctx, element)}
+${getters(ctx, element, isBridge: isBridge)}
     },
     setters: {
 ${setters(ctx, element)}
     },
     fields: {
-${fields(ctx, element)}
+${fields(ctx, element, isBridge: isBridge)}
     },
     ${element is ClassElement2 ? '''
     wrap: ${!isBridge},
@@ -137,7 +137,8 @@ String constructors(BindgenContext ctx, InterfaceElement2 element) {
       .join('\n');
 }
 
-String methods(BindgenContext ctx, InterfaceElement2 element) {
+String methods(BindgenContext ctx, InterfaceElement2 element,
+    {bool isBridge = false}) {
   final methods = {
     if (ctx.implicitSupers)
       for (var s in element.allSupertypes)
@@ -145,17 +146,22 @@ String methods(BindgenContext ctx, InterfaceElement2 element) {
           m.name3: m,
     for (final m in element.methods2) m.name3: m
   };
-  return methods.values
+  var chain = methods.values
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
-      .where((m) => !m.isPrivate)
-      // Only declare methods whose return type can be wrapped.
-      .where((m) => wrapVar(ctx, m.returnType, '_') != wrapVarSkipSentinel)
-      .map((m) => bridgeMethodDef(ctx, method: m))
-      .join('\n');
+      .where((m) => !m.isPrivate);
+  // For wrapper classes, only declare methods whose return type can be wrapped
+  // (keeps $declaration consistent with $getProperty). For bridge classes,
+  // keep all methods — the compiler needs the full method table for subclasses.
+  if (!isBridge) {
+    chain =
+        chain.where((m) => wrapVar(ctx, m.returnType, '_') != wrapVarSkipSentinel);
+  }
+  return chain.map((m) => bridgeMethodDef(ctx, method: m)).join('\n');
 }
 
-String getters(BindgenContext ctx, InterfaceElement2 element) {
+String getters(BindgenContext ctx, InterfaceElement2 element,
+    {bool isBridge = false}) {
   final getters = {
     if (ctx.implicitSupers)
       for (var s in element.allSupertypes)
@@ -164,19 +170,20 @@ String getters(BindgenContext ctx, InterfaceElement2 element) {
     for (final a in element.getters2) a.name3: a
   };
 
-  return getters.values
+  var chain = getters.values
       .where((m) => !(const ['hashCode', 'runtimeType'].contains(m.name3)))
       .where((element) => !element.isPrivate)
       .where((element) =>
           !element.isSynthetic ||
           (element is EnumElement2 &&
               element.nonSynthetic2 is FieldElement2 &&
-              !(element.nonSynthetic2 as FieldElement2).isEnumConstant))
-      // Only declare getters whose return type can be wrapped at runtime.
-      // This ensures $declaration stays consistent with $getProperty.
-      .where((e) => wrapVar(ctx, e.returnType, '_') != wrapVarSkipSentinel)
-      .map((e) => bridgeGetterDef(ctx, getter: e))
-      .join('\n');
+              !(element.nonSynthetic2 as FieldElement2).isEnumConstant));
+  // For wrapper classes only — see methods() comment.
+  if (!isBridge) {
+    chain =
+        chain.where((e) => wrapVar(ctx, e.returnType, '_') != wrapVarSkipSentinel);
+  }
+  return chain.map((e) => bridgeGetterDef(ctx, getter: e)).join('\n');
 }
 
 String setters(BindgenContext ctx, InterfaceElement2 element) {
@@ -194,7 +201,8 @@ String setters(BindgenContext ctx, InterfaceElement2 element) {
       .join('\n');
 }
 
-String fields(BindgenContext ctx, InterfaceElement2 element) {
+String fields(BindgenContext ctx, InterfaceElement2 element,
+    {bool isBridge = false}) {
   final allFields = {
     if (ctx.implicitSupers)
       for (var s in element.allSupertypes)
@@ -205,12 +213,14 @@ String fields(BindgenContext ctx, InterfaceElement2 element) {
     for (final f in element.fields2) f.name3: f
   };
 
-  final fields = allFields.values.where((element) =>
+  var chain = allFields.values.where((element) =>
       !element.isSynthetic && !element.isEnumConstant && !element.isPrivate);
 
-  return fields
-      // Only declare fields whose type can be wrapped.
-      .where((e) => wrapVar(ctx, e.type, '_') != wrapVarSkipSentinel)
+  // For wrapper classes only — see methods() comment.
+  if (!isBridge) {
+    chain = chain.where((e) => wrapVar(ctx, e.type, '_') != wrapVarSkipSentinel);
+  }
+  return chain
       .map(
         (e) => bridgeFieldDef(ctx, field: e),
       )
