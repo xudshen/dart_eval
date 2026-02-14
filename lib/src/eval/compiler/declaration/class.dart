@@ -6,6 +6,10 @@ import 'package:dart_eval/src/eval/compiler/type.dart';
 
 void compileClassDeclaration(CompilerContext ctx, ClassDeclaration d,
     {bool statics = false}) {
+  // Load class-level type parameters (e.g. T in class Foo<T>) so they
+  // resolve to dynamic during member compilation
+  TypeRef.loadTemporaryTypes(ctx, d.typeParameters?.typeParameters);
+
   final $runtimeType =
       ctx.typeRefIndexMap[TypeRef.lookupDeclaration(ctx, ctx.library, d)];
   final clsName = d.name.lexeme;
@@ -79,5 +83,6 @@ void compileClassDeclaration(CompilerContext ctx, ClassDeclaration d,
     }
   }
   ctx.currentClass = null;
+  ctx.temporaryTypes[ctx.library]?.clear();
   ctx.resetStack();
 }

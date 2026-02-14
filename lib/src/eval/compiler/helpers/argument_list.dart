@@ -546,10 +546,19 @@ TypeRef _resolveFieldFormalType(CompilerContext ctx, int decLibrary,
     throw CompileError('Field formals can only occur in constructors');
   }
   final $class = parameterHost.parent as NamedCompilationUnitMember;
-  return TypeRef.lookupFieldType(ctx,
+  // Temporarily load class-level type parameters so field types like T resolve
+  if ($class is ClassDeclaration) {
+    TypeRef.loadTemporaryTypes(ctx, $class.typeParameters?.typeParameters,
+        decLibrary);
+  }
+  final result = TypeRef.lookupFieldType(ctx,
           TypeRef.lookupDeclaration(ctx, decLibrary, $class), param.name.lexeme,
           forFieldFormal: true, source: param) ??
       CoreTypes.dynamic.ref(ctx);
+  if ($class is ClassDeclaration && $class.typeParameters != null) {
+    ctx.temporaryTypes[decLibrary]?.clear();
+  }
+  return result;
 }
 
 TypeRef resolveSuperFormalType(CompilerContext ctx, int decLibrary,

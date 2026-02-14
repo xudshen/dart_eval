@@ -722,5 +722,25 @@ void main() {
 
       expect(runtime.executeLib('package:example/main.dart', 'main'), 42);
     });
+
+    test('Generic class with type parameter in method', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class Box<T> {
+              T value;
+              Box(this.value);
+              T getValue() => value;
+            }
+
+            int main() {
+              final box = Box(42);
+              return box.getValue();
+            }
+          '''
+        }
+      });
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 42);
+    });
   });
 }

@@ -191,6 +191,11 @@ class TypeRef {
     final unspecifiedType =
         ctx.temporaryTypes[library]?[n] ?? ctx.visibleTypes[library]?[n];
     if (unspecifiedType == null) {
+      // Check if n is a type parameter of an enclosing class/function/method
+      if (_isEnclosingTypeParameter(typeAnnotation, n.toString())) {
+        final dynamic_ = CoreTypes.dynamic.ref(ctx);
+        return dynamic_.copyWith(nullable: typeAnnotation.question != null);
+      }
       throw CompileError(
           'Unknown type $n', typeAnnotation.parent, library, ctx);
     }
@@ -821,6 +826,33 @@ class TypeRef {
       }
     }
   }
+}
+
+/// Check if [name] is a type parameter declared in an enclosing
+/// class, mixin, function, or method by walking up the AST.
+bool _isEnclosingTypeParameter(AstNode node, String name) {
+  AstNode? current = node.parent;
+  while (current != null) {
+    TypeParameterList? typeParams;
+    if (current is ClassDeclaration) {
+      typeParams = current.typeParameters;
+    } else if (current is MixinDeclaration) {
+      typeParams = current.typeParameters;
+    } else if (current is FunctionDeclaration) {
+      typeParams = current.functionExpression.typeParameters;
+    } else if (current is MethodDeclaration) {
+      typeParams = current.typeParameters;
+    } else if (current is FunctionExpression) {
+      typeParams = current.typeParameters;
+    }
+    if (typeParams != null) {
+      for (final tp in typeParams.typeParameters) {
+        if (tp.name.lexeme == name) return true;
+      }
+    }
+    current = current.parent;
+  }
+  return false;
 }
 
 class RecordParameterType {
