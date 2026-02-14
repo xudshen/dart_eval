@@ -25,47 +25,19 @@ Variable compileInstanceCreation(
   }
 
   final staticType = $resolved.concreteTypes.first;
-  final dec0 = resolveStaticMethod(ctx, staticType, name);
 
-  //final List<Variable> _args;
-  //final Map<String, Variable> _namedArgs;
+  // Check whether the constructor exists in topLevelDeclarationsMap.
+  // For implicit default constructors (class has no explicit constructors),
+  // the key "ClassName." won't be present because no ConstructorDeclaration
+  // AST node exists. In that case, skip argument compilation and emit a
+  // direct Call to the compiled default constructor position.
+  final constructorKey = '${staticType.name}.$name';
+  final hasExplicitConstructor =
+      ctx.topLevelDeclarationsMap[staticType.file]?.containsKey(constructorKey) ?? false;
 
-  if (dec0.isBridge) {
-    final bridge = dec0.bridge;
-    final fnDescriptor = (bridge as BridgeConstructorDef).functionDescriptor;
-    compileArgumentListWithBridge(ctx, e.argumentList, fnDescriptor);
-
-    //_args = argsPair.first;
-    //_namedArgs = argsPair.second;
-  } else {
-    final dec = dec0.declaration!;
-    final fpl = (dec as ConstructorDeclaration).parameters.parameters;
-
-    compileArgumentList(ctx, e.argumentList, staticType.file, fpl, dec,
-        source: e);
-    //_args = argsPair.first;
-    //_namedArgs = argsPair.second;
-  }
-
-  //final _argTypes = _args.map((e) => e.type).toList();
-  //final _namedArgTypes = _namedArgs.map((key, value) => MapEntry(key, value.type));
-
-  if (dec0.isBridge) {
-    final bridge = dec0.bridge!;
-    if (bridge is BridgeClassDef && !bridge.wrap) {
-      final type = TypeRef.fromBridgeTypeRef(ctx, bridge.type.type);
-
-      final $null = BuiltinValue().push(ctx);
-      final op = BridgeInstantiate.make($null.scopeFrameOffset,
-          ctx.bridgeStaticFunctionIndices[type.file]!['${type.name}.']!);
-      ctx.pushOp(op, BridgeInstantiate.len(op));
-    } else {
-      final op = InvokeExternal.make(ctx.bridgeStaticFunctionIndices[
-          staticType.file]!['${staticType.name}.$name']!);
-      ctx.pushOp(op, InvokeExternal.LEN);
-      ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    }
-  } else {
+  if (!hasExplicitConstructor && name.isEmpty) {
+    // Implicit default constructor — no parameters to compile.
+    // Emit a Call to the constructor position (may be deferred).
     final offset = DeferredOrOffset.lookupStatic(
         ctx, staticType.file, staticType.name, name);
     final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
@@ -73,6 +45,45 @@ Variable compileInstanceCreation(
       ctx.offsetTracker.setOffset(loc, offset);
     }
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+  } else {
+    final dec0 = resolveStaticMethod(ctx, staticType, name);
+
+    if (dec0.isBridge) {
+      final bridge = dec0.bridge;
+      final fnDescriptor = (bridge as BridgeConstructorDef).functionDescriptor;
+      compileArgumentListWithBridge(ctx, e.argumentList, fnDescriptor);
+    } else {
+      final dec = dec0.declaration!;
+      final fpl = (dec as ConstructorDeclaration).parameters.parameters;
+
+      compileArgumentList(ctx, e.argumentList, staticType.file, fpl, dec,
+          source: e);
+    }
+
+    if (dec0.isBridge) {
+      final bridge = dec0.bridge!;
+      if (bridge is BridgeClassDef && !bridge.wrap) {
+        final type = TypeRef.fromBridgeTypeRef(ctx, bridge.type.type);
+
+        final $null = BuiltinValue().push(ctx);
+        final op = BridgeInstantiate.make($null.scopeFrameOffset,
+            ctx.bridgeStaticFunctionIndices[type.file]!['${type.name}.']!);
+        ctx.pushOp(op, BridgeInstantiate.len(op));
+      } else {
+        final op = InvokeExternal.make(ctx.bridgeStaticFunctionIndices[
+            staticType.file]!['${staticType.name}.$name']!);
+        ctx.pushOp(op, InvokeExternal.LEN);
+        ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+      }
+    } else {
+      final offset = DeferredOrOffset.lookupStatic(
+          ctx, staticType.file, staticType.name, name);
+      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
+      if (offset.offset == null) {
+        ctx.offsetTracker.setOffset(loc, offset);
+      }
+      ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+    }
   }
 
   return Variable.alloc(

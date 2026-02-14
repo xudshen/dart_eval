@@ -595,6 +595,42 @@ void main() {
       expect(runtime.executeLib('package:example/main.dart', 'main'), 10);
     });
 
+    test('class with no explicit constructor can be instantiated', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class A {}
+            int main() {
+              var a = A();
+              return a is A ? 1 : 0;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        1,
+      );
+    });
+
+    test('class with no explicit constructor can be instantiated with new', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class A {}
+            int main() {
+              var a = new A();
+              return a is A ? 1 : 0;
+            }
+          '''
+        }
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        1,
+      );
+    });
+
     test('Assigning to default null field', () {
       final program = compiler.compile({
         'example': {
