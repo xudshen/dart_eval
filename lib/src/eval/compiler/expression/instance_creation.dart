@@ -26,16 +26,18 @@ Variable compileInstanceCreation(
 
   final staticType = $resolved.concreteTypes.first;
 
-  // Check whether the constructor exists in topLevelDeclarationsMap.
-  // For implicit default constructors (class has no explicit constructors),
-  // the key "ClassName." won't be present because no ConstructorDeclaration
-  // AST node exists. In that case, skip argument compilation and emit a
-  // direct Call to the compiled default constructor position.
+  // Check whether the constructor exists in the declaration map or bridge
+  // indices. For implicit default constructors (class has no explicit
+  // constructors), neither map will have the key because no
+  // ConstructorDeclaration AST node exists. In that case, skip argument
+  // compilation and emit a direct Call to the compiled default constructor.
   final constructorKey = '${staticType.name}.$name';
-  final hasExplicitConstructor =
+  final hasInDeclarations =
       ctx.topLevelDeclarationsMap[staticType.file]?.containsKey(constructorKey) ?? false;
+  final hasInBridge =
+      ctx.bridgeStaticFunctionIndices[staticType.file]?.containsKey(constructorKey) ?? false;
 
-  if (!hasExplicitConstructor && name.isEmpty) {
+  if (!hasInDeclarations && !hasInBridge && name.isEmpty) {
     // Implicit default constructor — no parameters to compile.
     // Emit a Call to the constructor position (may be deferred).
     final offset = DeferredOrOffset.lookupStatic(
