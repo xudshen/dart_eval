@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dart_eval/dart_eval.dart';
 import 'package:test/test.dart';
@@ -35,17 +36,36 @@ String transformSource(String source) {
   return result;
 }
 
+/// Compiles and executes a co19 source string through dart_eval.
+///
+/// This is a top-level function so it can be called from [Isolate.run].
+/// All dart_eval objects are created inside the isolate.
+void _compileAndRun(String source) {
+  final transformed = transformSource(source);
+  final plugin = Co19ExpectPlugin();
+  final compiler = Compiler();
+  compiler.addPlugin(plugin);
+  final runtime = compiler.compileWriteAndLoad({
+    'co19_test': {'main.dart': transformed}
+  });
+  plugin.configureForRuntime(runtime);
+  runtime.executeLib('package:co19_test/main.dart', 'main');
+}
+
 /// Registers a single co19 test that reads, transforms, and executes a co19
 /// source file through dart_eval.
 ///
-/// Each call creates a fresh [Compiler] and [Runtime] for isolation.
+/// Each call creates a fresh [Compiler] and [Runtime] in a separate isolate.
+/// The isolate ensures that the test framework's [Timeout] works correctly —
+/// dart_eval's `Runtime.execute()` is synchronous and would block the event
+/// loop if run on the main isolate, preventing Timer-based timeouts.
 void co19Test({
   required String group,
   required String name,
   required String path,
   Timeout timeout = co19Timeout,
 }) {
-  test('$group $name', () {
+  test('$group $name', () async {
     final file = File('$co19Root/$path');
     if (!file.existsSync()) {
       fail('co19 source file not found: $co19Root/$path\n'
@@ -53,16 +73,8 @@ void co19Test({
           'git submodule update --init');
     }
 
-    final source = transformSource(file.readAsStringSync());
-
-    final plugin = Co19ExpectPlugin();
-    final compiler = Compiler();
-    compiler.addPlugin(plugin);
-    final runtime = compiler.compileWriteAndLoad({
-      'co19_test': {'main.dart': source}
-    });
-    plugin.configureForRuntime(runtime);
-    runtime.executeLib('package:co19_test/main.dart', 'main');
+    final source = file.readAsStringSync();
+    await Isolate.run(() => _compileAndRun(source));
   }, timeout: timeout);
 }
 
@@ -74,6 +86,7 @@ void co19Test({
 /// - `entries`: list of co19-relative source paths
 ///
 /// Tests are wrapped in a `group()` matching the manifest's group name.
+/// Each test runs in a separate [Isolate] for timeout support.
 void co19TestSuite({
   required String manifestPath,
   Timeout timeout = co19Timeout,
@@ -98,7 +111,7 @@ void co19TestSuite({
           .replaceAll('/', ' > ')
           .replaceAll('.dart', '');
 
-      test(name, () {
+      test(name, () async {
         final file = File('$co19Root/$entry');
         if (!file.existsSync()) {
           fail('co19 source file not found: $co19Root/$entry\n'
@@ -106,16 +119,8 @@ void co19TestSuite({
               'git submodule update --init');
         }
 
-        final source = transformSource(file.readAsStringSync());
-
-        final plugin = Co19ExpectPlugin();
-        final compiler = Compiler();
-        compiler.addPlugin(plugin);
-        final runtime = compiler.compileWriteAndLoad({
-          'co19_test': {'main.dart': source}
-        });
-        plugin.configureForRuntime(runtime);
-        runtime.executeLib('package:co19_test/main.dart', 'main');
+        final source = file.readAsStringSync();
+        await Isolate.run(() => _compileAndRun(source));
       }, timeout: timeout);
     }
   });
