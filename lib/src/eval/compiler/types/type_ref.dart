@@ -23,6 +23,14 @@ class TypeRef {
   /// Cache mapping [TypeRef]s to file/library IDs.
   static final _inverseCache = <TypeRef, List<int>>{};
 
+  /// Clear the static TypeRef caches. Must be called at the start of each
+  /// compilation to prevent stale state from previous compilations leaking
+  /// into new compiler contexts.
+  static void resetState() {
+    _cache.clear();
+    _inverseCache.clear();
+  }
+
   final int file;
   final String name;
   final TypeRef? extendsType;

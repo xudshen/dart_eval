@@ -192,6 +192,10 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     _extensionDeclarations = <_ExtensionEntry>[];
     _bridgeStaticFunctionIdx = 0;
 
+    // Reset static TypeRef caches to prevent stale state from previous
+    // compilations leaking into this compilation context.
+    TypeRef.resetState();
+
     // Create a compilation context
     _ctx = CompilerContext(0, version: version);
     if (scopeRecorder != null) {
