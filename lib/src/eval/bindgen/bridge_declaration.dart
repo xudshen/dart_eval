@@ -149,6 +149,8 @@ String methods(BindgenContext ctx, InterfaceElement2 element) {
       .where(
           (m) => !(const ['==', 'toString', 'noSuchMethod'].contains(m.name3)))
       .where((m) => !m.isPrivate)
+      // Only declare methods whose return type can be wrapped.
+      .where((m) => wrapVar(ctx, m.returnType, '_') != wrapVarSkipSentinel)
       .map((m) => bridgeMethodDef(ctx, method: m))
       .join('\n');
 }
@@ -170,6 +172,9 @@ String getters(BindgenContext ctx, InterfaceElement2 element) {
           (element is EnumElement2 &&
               element.nonSynthetic2 is FieldElement2 &&
               !(element.nonSynthetic2 as FieldElement2).isEnumConstant))
+      // Only declare getters whose return type can be wrapped at runtime.
+      // This ensures $declaration stays consistent with $getProperty.
+      .where((e) => wrapVar(ctx, e.returnType, '_') != wrapVarSkipSentinel)
       .map((e) => bridgeGetterDef(ctx, getter: e))
       .join('\n');
 }
@@ -204,6 +209,8 @@ String fields(BindgenContext ctx, InterfaceElement2 element) {
       !element.isSynthetic && !element.isEnumConstant && !element.isPrivate);
 
   return fields
+      // Only declare fields whose type can be wrapped.
+      .where((e) => wrapVar(ctx, e.type, '_') != wrapVarSkipSentinel)
       .map(
         (e) => bridgeFieldDef(ctx, field: e),
       )
