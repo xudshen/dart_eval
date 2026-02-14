@@ -787,6 +787,16 @@ ${$setProperty(ctx, element)}
     while (currentType != null && !currentType.isDartCoreObject) {
       final narrowWrapper = wrapType(ctx, currentType, '\$value');
       if (narrowWrapper != null) return narrowWrapper;
+      // If the type is registered (has a binding) but wrapType failed
+      // (missing exportedLibMappings), construct the wrapper directly.
+      // This handles same-batch generation where the parent class's
+      // barrel file mapping isn't available yet.
+      if (isTypeResolvable(ctx, currentType)) {
+        final superName = currentType.element3.name3;
+        if (superName != null && !superName.startsWith('_')) {
+          return '\$$superName.wrap(\$value)';
+        }
+      }
       final superElement = currentType.element3;
       currentType =
           (superElement is ClassElement2) ? superElement.supertype : null;
