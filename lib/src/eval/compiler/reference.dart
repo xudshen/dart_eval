@@ -552,9 +552,11 @@ class IndexedReference implements Reference {
             'TypeError: Cannot use variable of type ${_index.type} as list index');
       }
 
-      final list = _variable.unboxIfNeeded(ctx);
+      _variable = _variable.unboxIfNeeded(ctx);
       _index = _index.unboxIfNeeded(ctx);
-      ctx.pushOp(IndexList.make(list.scopeFrameOffset, _index.scopeFrameOffset),
+      ctx.pushOp(
+          IndexList.make(
+              _variable.scopeFrameOffset, _index.scopeFrameOffset),
           IndexList.LEN);
       final listElementType = _variable.type.specifiedTypeArgs.isNotEmpty
           ? _variable.type.specifiedTypeArgs[0]
@@ -572,12 +574,14 @@ class IndexedReference implements Reference {
             '<${_variable.type.specifiedTypeArgs[0]}, ${_variable.type.specifiedTypeArgs[1]}>');
       }
 
-      final map = _variable.unboxIfNeeded(ctx);
+      _variable = _variable.unboxIfNeeded(ctx);
       _index = (_variable.type.specifiedTypeArgs.isEmpty ||
               _variable.type.specifiedTypeArgs[0].boxed)
           ? _index.boxIfNeeded(ctx, source)
           : _index.unboxIfNeeded(ctx);
-      ctx.pushOp(IndexMap.make(map.scopeFrameOffset, _index.scopeFrameOffset),
+      ctx.pushOp(
+          IndexMap.make(
+              _variable.scopeFrameOffset, _index.scopeFrameOffset),
           IndexMap.LEN);
 
       final mapResult = Variable.alloc(
