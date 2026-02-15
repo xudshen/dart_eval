@@ -64,3 +64,22 @@ class ProgramExit implements Exception {
 
   ProgramExit(this.exitCode);
 }
+
+/// Thrown when the runtime exceeds its configured instruction limit.
+///
+/// This prevents infinite loops from exhausting memory or hanging the process.
+/// Set via [Runtime.instructionLimit].
+class InstructionLimitExceededException implements Exception {
+  const InstructionLimitExceededException(this.count, this.limit);
+
+  /// The instruction count when the limit was hit.
+  final int count;
+
+  /// The configured limit.
+  final int limit;
+
+  @override
+  String toString() =>
+      'InstructionLimitExceededException: executed $count instructions '
+      '(limit: $limit)';
+}

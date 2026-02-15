@@ -36,6 +36,12 @@ String transformSource(String source) {
   return result;
 }
 
+/// Default instruction limit for co19 tests.
+///
+/// Most co19 tests complete in < 10 000 instructions. This limit catches
+/// infinite loops early without affecting legitimate tests.
+const co19InstructionLimit = 100000;
+
 /// Compiles and executes a co19 source string through dart_eval.
 ///
 /// This is a top-level function so it can be called from [Isolate.run].
@@ -49,6 +55,7 @@ void _compileAndRun(String source) {
     'co19_test': {'main.dart': transformed}
   });
   plugin.configureForRuntime(runtime);
+  runtime.instructionLimit = co19InstructionLimit;
   runtime.executeLib('package:co19_test/main.dart', 'main');
 }
 

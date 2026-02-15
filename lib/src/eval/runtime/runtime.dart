@@ -776,6 +776,20 @@ class Runtime {
   /// The current bytecode program offset
   int _prOffset = 0;
 
+  /// Instruction counter, incremented in [execute] and [bridgeCall].
+  int _instructionCount = 0;
+
+  /// Maximum instructions before throwing [InstructionLimitExceededException].
+  /// `null` means unlimited (default).
+  int? _instructionLimit;
+
+  /// Set an instruction execution limit. When reached, the runtime throws
+  /// [InstructionLimitExceededException]. Pass `null` to disable.
+  set instructionLimit(int? limit) => _instructionLimit = limit;
+
+  /// Current instruction count since the last [execute] call.
+  int get instructionCount => _instructionCount;
+
   /// Print the program's bytecode in a readable format
   void printOpcodes() {
     _setup();
@@ -807,6 +821,7 @@ class Runtime {
   dynamic execute(int entrypoint) {
     _setup();
     _prOffset = entrypoint;
+    _instructionCount = 0;
     try {
       callFrames.add(CallFrame(-1));
       while (true) {
@@ -816,6 +831,11 @@ class Runtime {
             'Stack sync violated BEFORE op #$_prOffset: '
             'stack.length=${stack.length} != scopeNameStack.length=${scopeNameStack.length}',
           );
+        }
+        _instructionCount++;
+        final limit = _instructionLimit;
+        if (limit != null && (_instructionCount & 0x3FF) == 0 && _instructionCount >= limit) {
+          throw InstructionLimitExceededException(_instructionCount, limit);
         }
         final opIdx = _prOffset;
         final op = pr[_prOffset++];
@@ -832,6 +852,8 @@ class Runtime {
       }
     } on ProgramExit catch (_) {
       return returnValue;
+    } on InstructionLimitExceededException catch (_) {
+      rethrow;
     } on RuntimeException catch (_) {
       rethrow;
     } on WrappedException catch (e) {
@@ -857,6 +879,11 @@ class Runtime {
             'stack.length=${stack.length} != scopeNameStack.length=${scopeNameStack.length}',
           );
         }
+        _instructionCount++;
+        final limit = _instructionLimit;
+        if (limit != null && (_instructionCount & 0x3FF) == 0 && _instructionCount >= limit) {
+          throw InstructionLimitExceededException(_instructionCount, limit);
+        }
         final opIdx = _prOffset;
         final op = pr[_prOffset++];
         if (kDebugTraceExecution) {
@@ -873,6 +900,8 @@ class Runtime {
     } on ProgramExit catch (_) {
       _prOffset = savedOffset;
       return;
+    } on InstructionLimitExceededException catch (_) {
+      rethrow;
     } on RuntimeException catch (_) {
       rethrow;
     } on WrappedException catch (e) {

@@ -3,6 +3,7 @@ library;
 
 export 'src/eval/eval.dart';
 export 'src/eval/runtime/call_frame.dart' show CallFrame;
+export 'src/eval/runtime/exception.dart' show InstructionLimitExceededException;
 export 'src/eval/runtime/runtime.dart' show Runtime;
 export 'src/eval/compiler/compiler.dart';
 export 'src/eval/compiler/program.dart';
