@@ -3,10 +3,12 @@ import 'package:dart_eval/src/eval/compiler/context.dart';
 class CompilerLabel {
   final int offset;
   final int Function(CompilerContext ctx) cleanup;
+  final int Function(CompilerContext ctx)? continueCleanup;
   final String? name;
   final LabelType type;
 
-  const CompilerLabel(this.type, this.offset, this.cleanup, {this.name});
+  const CompilerLabel(this.type, this.offset, this.cleanup,
+      {this.name, this.continueCleanup});
 }
 
 class SimpleCompilerLabel implements CompilerLabel {
@@ -16,6 +18,8 @@ class SimpleCompilerLabel implements CompilerLabel {
   final String? name;
   @override
   get type => LabelType.block;
+  @override
+  get continueCleanup => null;
 
   const SimpleCompilerLabel({this.name});
 

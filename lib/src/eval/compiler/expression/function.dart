@@ -107,6 +107,8 @@ Variable compileFunctionExpression(FunctionExpression e, CompilerContext ctx,
         ctx, AlwaysReturnType(CoreTypes.dynamic.ref(ctx), true), V,
         isAsync: b.isAsynchronous);
     ctx.endAllocScope();
+  } else if (b is EmptyFunctionBody) {
+    stInfo = StatementInfo(-1);
   } else {
     throw CompileError('Unsupported function body type: ${b.runtimeType}');
   }

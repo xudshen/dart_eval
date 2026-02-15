@@ -705,6 +705,11 @@ class TypeRef {
       return true;
     }
 
+    // void is a top type: any value can be assigned to void
+    if (slot == CoreTypes.voidType.ref(ctx)) {
+      return true;
+    }
+
     if (this == CoreTypes.nullType.ref(ctx)) {
       return slot.nullable || slot == CoreTypes.nullType.ref(ctx);
     }

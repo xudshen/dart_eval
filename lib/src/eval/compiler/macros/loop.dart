@@ -135,7 +135,9 @@ StatementInfo macroLoop(
   // nested blocks, etc.) that don't have their own label cleanup.
   final labelAllocDepth = ctx.allocNest.length;
 
-  final label = CompilerLabel(LabelType.loop, loopStart, (ctx) {
+  late final CompilerLabel label;
+
+  int breakCleanup(CompilerContext ctx) {
     // Pop intermediate alloc scopes added by body constructs.  The break
     // compiler cleans up intermediate *labels* but not intermediate *scopes*
     // — e.g., an `if` block's outer alloc scope has no label and would
@@ -166,7 +168,56 @@ StatementInfo macroLoop(
     ctx.endAllocScopeQuiet();
     final result = ctx.pushOp(JumpConstant.make(-1), JumpConstant.LEN);
     return result;
-  });
+  }
+
+  int continueCleanup(CompilerContext ctx) {
+    // Pop intermediate alloc scopes (same as break cleanup)
+    while (ctx.allocNest.length > labelAllocDepth) {
+      ctx.endAllocScopeQuiet();
+    }
+
+    // Per-iteration scope teardown
+    if (needsPerIterationScope) {
+      _emitCopyBack(ctx, loopVariableNames, copyBackIndexVars!,
+          copyBackTempVar!);
+      ctx.pushOp(PopScope.make(), PopScope.LEN);
+      ctx.endAllocScopeQuiet(popValues: false);
+    }
+
+    // Pop inner loop scope (condition + body allocations)
+    ctx.endAllocScopeQuiet();
+
+    // Resolve boxing state for outer variables changed during body
+    ctx.resolveBranchStateDiscontinuity(save);
+
+    // For C-style for: re-emit the update code (e.g., i++)
+    if (update != null && !updateBeforeBody) {
+      update(ctx);
+    }
+
+    // For do-while: re-emit the condition check
+    if (alwaysLoopOnce && condition != null) {
+      final condResult = condition(ctx).unboxIfNeeded(ctx);
+      final jif = JumpIfFalse.make(condResult.scopeFrameOffset, -1);
+      final jifPos = ctx.pushOp(jif, JumpIfFalse.LEN);
+      // Condition true → loop back
+      ctx.pushOp(JumpConstant.make(loopStart), JumpConstant.LEN);
+      // Condition false → exit loop (rewrite JumpIfFalse to here)
+      ctx.rewriteOp(jifPos,
+          JumpIfFalse.make(condResult.scopeFrameOffset, ctx.out.length), 0);
+      // Exit: pop outer loop scope and jump past loop via break resolution
+      ctx.endAllocScopeQuiet();
+      final exitJump = ctx.pushOp(JumpConstant.make(-1), JumpConstant.LEN);
+      ctx.labelReferences.putIfAbsent(label, () => <int>{}).add(exitJump);
+      return exitJump;
+    }
+
+    // Jump to loop start (condition re-check for while/for/for-each)
+    return ctx.pushOp(JumpConstant.make(loopStart), JumpConstant.LEN);
+  }
+
+  label = CompilerLabel(LabelType.loop, loopStart, breakCleanup,
+      continueCleanup: continueCleanup);
 
   ctx.labels.add(label);
   final statementResult = body(ctx, expectedReturnType);

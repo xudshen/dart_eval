@@ -96,6 +96,9 @@ void compileFunctionDeclaration(FunctionDeclaration d, CompilerContext ctx) {
         isAsync: b.isAsynchronous);
     stInfo = StatementInfo(-1, willAlwaysReturn: true);
     ctx.endAllocScope(popValues: false);
+  } else if (b is EmptyFunctionBody) {
+    ctx.endAllocScope();
+    return;
   } else {
     throw CompileError('Unsupported function body type: ${b.runtimeType}');
   }

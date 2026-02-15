@@ -11,6 +11,25 @@ import '../type.dart';
 import '../util.dart';
 import '../variable.dart';
 
+/// Materialize a virtual variable (scopeFrameOffset == -1) onto the stack.
+/// Handles function tearoffs and type literals that are created as virtual
+/// variables during compilation but need real stack slots for PushArg.
+Variable _materializeArg(CompilerContext ctx, Variable arg0) {
+  if (arg0.scopeFrameOffset == -1) {
+    if (arg0.type == CoreTypes.function.ref(ctx)) {
+      return arg0.tearOff(ctx);
+    }
+    if (arg0.type == CoreTypes.type.ref(ctx) &&
+        arg0.concreteTypes.isNotEmpty) {
+      final concrete = arg0.concreteTypes[0];
+      ctx.pushOp(PushConstantType.make(concrete.toRuntimeType(ctx).type),
+          PushConstantType.LEN);
+      return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
+    }
+  }
+  return arg0;
+}
+
 Pair<List<Variable>, Map<String, Variable>> compileArgumentList(
     CompilerContext ctx,
     ArgumentList argumentList,
@@ -297,10 +316,7 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentListWithDynamic(
       arg0 = arg0.unboxIfNeeded(ctx);
     }
 
-    if (arg0.type == CoreTypes.function.ref(ctx) &&
-        arg0.scopeFrameOffset == -1) {
-      arg0 = arg0.tearOff(ctx);
-    }
+    arg0 = _materializeArg(ctx, arg0);
 
     args.add(arg0);
     push.add(arg0);
@@ -348,10 +364,7 @@ Pair<List<Variable>, Map<String, Variable>>
       var arg0 = compileExpression(arg, ctx, paramType);
       arg0 = arg0.boxIfNeeded(ctx);
 
-      if (arg0.type == CoreTypes.function.ref(ctx) &&
-          arg0.scopeFrameOffset == -1) {
-        arg0 = arg0.tearOff(ctx);
-      }
+      arg0 = _materializeArg(ctx, arg0);
 
       if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
         throw CompileError(
@@ -434,10 +447,7 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentListWithBridge(
 
       var arg0 = compileExpression(arg, ctx, paramType);
       arg0 = arg0.boxIfNeeded(ctx);
-      if (arg0.type == CoreTypes.function.ref(ctx) &&
-          arg0.scopeFrameOffset == -1) {
-        arg0 = arg0.tearOff(ctx);
-      }
+      arg0 = _materializeArg(ctx, arg0);
       if (!(param.type.nullable && arg0.type == CoreTypes.nullType.ref(ctx)) &&
           !arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
         throw CompileError(
@@ -467,10 +477,7 @@ Pair<List<Variable>, Map<String, Variable>> compileArgumentListWithBridge(
     if (namedExpr.containsKey(param.name)) {
       var arg0 = compileExpression(namedExpr[param.name]!, ctx, paramType)
           .boxIfNeeded(ctx);
-      if (arg0.type == CoreTypes.function.ref(ctx) &&
-          arg0.scopeFrameOffset == -1) {
-        arg0 = arg0.tearOff(ctx);
-      }
+      arg0 = _materializeArg(ctx, arg0);
       if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
         throw CompileError(
             'Cannot assign argument of type ${arg0.type} to parameter of type $paramType',
@@ -515,10 +522,7 @@ Variable _compileAndValidateArg(
     arg0 = arg0.unboxIfNeeded(ctx);
   }
 
-  if (arg0.type == CoreTypes.function.ref(ctx) &&
-      arg0.scopeFrameOffset == -1) {
-    arg0 = arg0.tearOff(ctx);
-  }
+  arg0 = _materializeArg(ctx, arg0);
 
   if (!arg0.type.resolveTypeChain(ctx).isAssignableTo(ctx, paramType)) {
     throw CompileError(
