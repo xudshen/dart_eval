@@ -38,8 +38,9 @@ Variable compilePrefixExpression(CompilerContext ctx, PrefixExpression e) {
       V.type != CoreTypes.double.ref(ctx) &&
       V.type != CoreTypes.dynamic.ref(ctx) &&
       V.type != CoreTypes.num.ref(ctx)) {
-    // For custom types, invoke unary- via the 'unary-' operator method
-    return V.invoke(ctx, 'unary-', []).result;
+    // For custom types, invoke unary- via the operator method.
+    // The method is registered as '-' (d.name.lexeme), not 'unary-'.
+    return V.invoke(ctx, '-', []).result;
   } else if (method == '!' && V.type != CoreTypes.bool.ref(ctx)) {
     throw CompileError(
         'Unary prefix "!" is currently only supported for bools (type: ${V.type})',
@@ -54,14 +55,14 @@ Variable compilePrefixExpression(CompilerContext ctx, PrefixExpression e) {
 }
 
 BuiltinValue _zeroForType(TypeRef type, CompilerContext ctx) =>
-    type == CoreTypes.int.ref(ctx)
-        ? BuiltinValue(intval: 0)
-        : BuiltinValue(doubleval: 0.0);
+    type == CoreTypes.double.ref(ctx)
+        ? BuiltinValue(doubleval: 0.0)
+        : BuiltinValue(intval: 0);
 
 BuiltinValue _oneForType(TypeRef type, CompilerContext ctx) =>
-    type == CoreTypes.int.ref(ctx)
-        ? BuiltinValue(intval: 1)
-        : BuiltinValue(doubleval: 1.0);
+    type == CoreTypes.double.ref(ctx)
+        ? BuiltinValue(doubleval: 1.0)
+        : BuiltinValue(intval: 1);
 
 Variable _handleDoubleOperands(
   PrefixExpression e,
