@@ -86,24 +86,35 @@ extension Invoke on Variable {
       }
 
       Variable result;
+      // Use KnownMethod return type rules (e.g. int + double → double)
+      // but only when both operands are concrete num subtypes.
+      // When either operand is dynamic, fall back to commonBaseType to
+      // preserve dynamic propagation (e.g. 0.0 - dynamic → dynamic).
+      TypeRef _intrinsicReturnType(String op) {
+        if ($this.type != CoreTypes.dynamic.ref(ctx) &&
+            R.type != CoreTypes.dynamic.ref(ctx)) {
+          final rt = AlwaysReturnType.fromInstanceMethodOrBuiltin(
+              ctx, $this.type, op, [R.type], {});
+          if (rt?.type != null) {
+            return rt!.type!.copyWith(boxed: false);
+          }
+        }
+        return TypeRef.commonBaseType(ctx, {$this.type, R.type})
+            .copyWith(boxed: false);
+      }
+
       switch (method) {
         case '+':
           // Num intrinsic add
           ctx.pushOp(NumAdd.make($this.scopeFrameOffset, R.scopeFrameOffset),
               NumAdd.LEN);
-          result = Variable.alloc(
-              ctx,
-              TypeRef.commonBaseType(ctx, {$this.type, R.type})
-                  .copyWith(boxed: false));
+          result = Variable.alloc(ctx, _intrinsicReturnType('+'));
           break;
         case '-':
           // Num intrinsic sub
           ctx.pushOp(NumSub.make($this.scopeFrameOffset, R.scopeFrameOffset),
               NumSub.LEN);
-          result = Variable.alloc(
-              ctx,
-              TypeRef.commonBaseType(ctx, {$this.type, R.type})
-                  .copyWith(boxed: false));
+          result = Variable.alloc(ctx, _intrinsicReturnType('-'));
           break;
 
         case '<':
