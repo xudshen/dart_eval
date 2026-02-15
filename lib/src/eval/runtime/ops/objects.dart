@@ -100,6 +100,20 @@ class InvokeDynamic implements EvcOp {
         runtime._prOffset = object.offset;
         return;
       }
+      // Wrap raw primitives (e.g. String from LoadGlobal) as $Value
+      // so $getProperty dispatch works for bridge types.
+      if (object is! $Instance) {
+        final wrapped = runtime.wrapPrimitive(object);
+        if (wrapped is $Instance) {
+          object = wrapped;
+        } else {
+          // null or unwrappable → throw catchable NoSuchMethodError
+          runtime.$throw(NoSuchMethodError.withInvocation(
+              object, Invocation.method(Symbol(method0), runtime.args)));
+          runtime.args = [];
+          return;
+        }
+      }
       final method = ((object as $Instance).$getProperty(runtime, method0)
           as EvalFunction);
       try {
